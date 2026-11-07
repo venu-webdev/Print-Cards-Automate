@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop PC Setup Guide · Card Print Studio</title>
+<style>
+  :root { --text:#17171a; --muted:#5f5f68; --line:#e4e3df; --bg:#f7f7f5; --card:#fff; --accent:#ea6a1f; --soft:#fdf0e7; --ok:#15803d; --okbg:#ecfdf3; --warn:#9a3412; --warnbg:#fff4ec; --code:#f1f0ec; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15.5px/1.6 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; }
+  header.top { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; }
+  .mark { width: 40px; height: 40px; border-radius: 11px; background: #17171a; display: grid; place-items: center; position: relative; flex: none; }
+  .mark::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 13px; height: 13px; border-radius: 4px; background: var(--accent); border: 3px solid var(--bg); }
+  .mark svg { width: 22px; height: 22px; color: #fff; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin: 2px 0 0; }
+  nav.toc { margin: 24px 0 8px; padding: 16px 20px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  nav.toc b { display: block; margin-bottom: 6px; }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 32px; }
+  nav.toc a { color: var(--text); text-decoration: none; } nav.toc a:hover { color: var(--accent); }
+  section { margin-top: 26px; padding: 22px 24px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; break-inside: avoid-page; }
+  h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.01em; display: flex; gap: 12px; align-items: center; }
+  h2 .n { width: 30px; height: 30px; border-radius: 9px; background: var(--soft); color: var(--accent); display: grid; place-items: center; font-size: 15px; flex: none; }
+  h2 + p.lead { color: var(--muted); margin: 0 0 12px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; }
+  ol.steps { margin: 8px 0 0; padding-left: 0; list-style: none; counter-reset: s; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 8px 0 8px 40px; border-top: 1px dashed var(--line); }
+  ol.steps > li:first-child { border-top: 0; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 9px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--text); font-size: 13px; font-weight: 600; display: grid; place-items: center; }
+  .ui { display: inline-block; padding: 0 7px; border-radius: 6px; border: 1px solid #cfcdc6; background: #fafaf8; font-weight: 600; font-size: 14px; white-space: nowrap; }
+  code, .path { font: 13.5px Consolas, "Cascadia Mono", monospace; background: var(--code); padding: 1px 6px; border-radius: 5px; }
+  .tip, .warn, .ok { margin: 12px 0 0; padding: 11px 14px; border-radius: 10px; font-size: 14.5px; }
+  .tip { background: var(--soft); } .warn { background: var(--warnbg); color: var(--warn); } .ok { background: var(--okbg); color: var(--ok); }
+  .tip b:first-child, .warn b:first-child, .ok b:first-child { margin-right: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { background: #fafaf8; font-weight: 600; }
+  ul.check { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+  ul.check li::before { content: "☐"; margin-right: 10px; font-size: 17px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .box b { display: block; margin-bottom: 4px; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 13px; text-align: center; }
+  .noprint { }
+  @media (max-width: 700px) { nav.toc ol { columns: 1; } .grid2 { grid-template-columns: 1fr; } }
+  @media print { body { background: #fff; font-size: 12.5px; } section, nav.toc { border-color: #ccc; } .noprint { display: none; } a { color: inherit; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/></svg></span>
+    <div><h1>Shop PC setup guide</h1><p class="sub">Card Print Studio &middot; Epson L8050 PVC cards &middot; Canon iR A4 Aadhaar sheets</p></div>
+  </header>
+  <p class="noprint" style="color:var(--muted);font-size:14px">Tip: press <b>Ctrl + P</b> to print this guide.</p>
+
+  <nav class="toc"><b>Steps</b><ol>
+    <li><a href="#need">What you need</a></li>
+    <li><a href="#unzip">Copy and unzip the folder</a></li>
+    <li><a href="#python">Install Python</a></li>
+    <li><a href="#setup">Run Setup.bat</a></li>
+    <li><a href="#start">Start the website</a></li>
+    <li><a href="#printers">Install the two printers</a></li>
+    <li><a href="#cards">Make test cards (no printing)</a></li>
+    <li><a href="#epson">Epson L8050: card printer settings</a></li>
+    <li><a href="#epsontest">Epson: alignment test on a blank card</a></li>
+    <li><a href="#epsonprint">Epson: print a real PVC card</a></li>
+    <li><a href="#canon">Canon iR: A4 settings and scale test</a></li>
+    <li><a href="#aadhaar">Canon: print Aadhaar A4 sheets</a></li>
+    <li><a href="#trouble">If something goes wrong</a></li>
+    <li><a href="#daily">Daily use (short version)</a></li>
+  </ol></nav>
+
+  <section id="need">
+    <h2><span class="n">1</span>What you need</h2>
+    <p class="lead">Keep these ready before you start.</p>
+    <ul class="check">
+      <li>The shop PC (Windows 10 or 11) with internet</li>
+      <li>The zip file <code>Print-Cards-Automate-shop.zip</code> (from Google Drive)</li>
+      <li>Epson L8050 connected (USB or Wi-Fi), with ink, and its <b>Disc/ID Card Tray</b></li>
+      <li>Canon iR office printer connected to the PC / network</li>
+      <li>A ruler in millimetres</li>
+      <li>2&ndash;3 <b>blank PVC cards</b> for testing, a few A4 sheets</li>
+      <li>One real PVC card (e.g. an old ID card) to compare the size</li>
+    </ul>
+  </section>
+
+  <section id="unzip">
+    <h2><span class="n">2</span>Copy and unzip the folder</h2>
+    <ol class="steps">
+      <li>Download <code>Print-Cards-Automate-shop.zip</code> from your Google Drive to the shop PC.</li>
+      <li>Right-click the zip &rarr; <span class="ui">Properties</span> &rarr; at the bottom tick <span class="ui">Unblock</span> &rarr; <span class="ui">OK</span>.
+        <div class="tip"><b>Why:</b> Windows marks downloaded files. Without this, the <code>.bat</code> files may be blocked with &ldquo;Windows protected your PC&rdquo;.</div></li>
+      <li>Right-click the zip &rarr; <span class="ui">Extract All&hellip;</span> &rarr; choose a simple place, e.g. <span class="path">D:\CardPrint</span> or <span class="path">C:\CardPrint</span> &rarr; <span class="ui">Extract</span>.</li>
+      <li>Open the extracted <span class="path">Print-Cards-Automate</span> folder. You should see <code>Setup.bat</code>, <code>Start Website.bat</code>, <code>Make Cards.bat</code>, this guide, and the folders <code>raw</code>, <code>export</code>, <code>plugins</code>, <code>templates</code>, <code>web</code>.</li>
+    </ol>
+    <div class="warn"><b>Don&rsquo;t</b> run anything from inside the zip window &ndash; always from the extracted folder.</div>
+  </section>
+
+  <section id="python">
+    <h2><span class="n">3</span>Install Python 3.12</h2>
+    <ol class="steps">
+      <li>Open <b>python.org/downloads</b> and download <b>Python 3.12</b> (Windows installer, 64-bit).</li>
+      <li>Run it. On the <b>first screen</b> tick <span class="ui">Add python.exe to PATH</span> &larr; very important.</li>
+      <li>Click <span class="ui">Install Now</span>. When it says &ldquo;Setup was successful&rdquo;, click <span class="ui">Close</span>.</li>
+    </ol>
+    <div class="tip"><b>Check:</b> press <b>Win + R</b>, type <code>cmd</code>, Enter, then type <code>python --version</code>. It should show <code>Python 3.12.x</code>. If it says &ldquo;not recognized&rdquo;, run the installer again &rarr; <span class="ui">Modify</span>/<span class="ui">Repair</span> and make sure &ldquo;Add to PATH&rdquo; is ticked.</div>
+  </section>
+
+  <section id="setup">
+    <h2><span class="n">4</span>Run Setup.bat (one time)</h2>
+    <ol class="steps">
+      <li>In the folder, double-click <code>Setup.bat</code>.
+        <div class="tip"><b>If a blue &ldquo;Windows protected your PC&rdquo; box appears:</b> click <span class="ui">More info</span> &rarr; <span class="ui">Run anyway</span>.</div></li>
+      <li>A black window downloads the parts the tool needs (needs internet, takes 1&ndash;3 minutes).</li>
+      <li>When it shows <b>&ldquo;Setup finished&rdquo;</b>, press any key to close it.</li>
+    </ol>
+    <div class="warn"><b>If it shows red errors:</b> check the internet connection and run <code>Setup.bat</code> again. Take a photo of the message if it still fails.</div>
+  </section>
+
+  <section id="start">
+    <h2><span class="n">5</span>Start the website</h2>
+    <ol class="steps">
+      <li>Double-click <code>Start Website.bat</code>. A black window opens and the browser opens <b>http://127.0.0.1:5000</b>.</li>
+      <li><b>Keep the black window open</b> while you work &ndash; closing it stops the tool. It also shows error messages if something fails.</li>
+      <li>If Windows Firewall asks about Python, click <span class="ui">Cancel</span> (the tool only runs on this PC, it doesn&rsquo;t need network access from others).</li>
+    </ol>
+    <div class="tip"><b>Shortcut:</b> right-click <code>Start Website.bat</code> &rarr; <span class="ui">Send to</span> &rarr; <span class="ui">Desktop (create shortcut)</span> so staff can start it from the desktop every morning.</div>
+  </section>
+
+  <section id="printers">
+    <h2><span class="n">6</span>Install the two printers in Windows</h2>
+    <div class="grid2">
+      <div class="box"><b>Epson L8050</b>
+        Install the <b>Epson L8050 driver</b> from Epson&rsquo;s support website (&ldquo;Drivers and Utilities Combo Package&rdquo;). Connect the printer. It should appear as <b>EPSON L8050 Series</b>.</div>
+      <div class="box"><b>Canon iR</b>
+        Install the Canon driver for your model (e.g. iR 5500 &ndash; &ldquo;Generic Plus UFR II&rdquo; or &ldquo;PCL6&rdquo;) and add the printer.</div>
+    </div>
+    <ol class="steps" style="margin-top:12px">
+      <li>Open <b>Settings &rarr; Bluetooth &amp; devices &rarr; Printers &amp; scanners</b> (Windows 11) or <b>Settings &rarr; Devices &rarr; Printers &amp; scanners</b> (Windows 10).</li>
+      <li>Click each printer &rarr; <span class="ui">Printer properties</span> &rarr; <span class="ui">Print Test Page</span>. Both must print a normal Windows test page before you continue.</li>
+    </ol>
+    <div class="tip"><b>Epson:</b> for the Windows test page use plain A4 paper in the normal paper tray &ndash; not the card tray.</div>
+  </section>
+
+  <section id="cards">
+    <h2><span class="n">7</span>Make test cards (no printing yet)</h2>
+    <p class="lead">This checks the tool works on this PC. The <code>raw</code> folder already has test PDFs.</p>
+    <ol class="steps">
+      <li>In the website, leave the card type on <span class="ui">Auto-detect</span>.</li>
+      <li>Drag these files from the <code>raw</code> folder onto <b>&ldquo;Drop PDFs or click to choose&rdquo;</b>:
+        <table>
+          <tr><th>Card</th><th>Test file</th></tr>
+          <tr><td>Aadhaar PVC</td><td><code>SUBR1992.pdf</code>, <code>KVEN1983.pdf</code> (locked &ndash; opens by itself)</td></tr>
+          <tr><td>PAN (with hologram)</td><td><code>01011961.pdf</code></td></tr>
+          <tr><td>Driving Licence</td><td><code>DAMODHARDL.pdf</code>, <code>DL-Type-1.pdf</code></td></tr>
+          <tr><td>Voter ID</td><td><code>Voter-ID.pdf</code></td></tr>
+          <tr><td>Vehicle RC</td><td><code>RC-SAMPLE.pdf</code></td></tr>
+        </table></li>
+      <li><b>Aadhaar A4 sheets:</b> click the <span class="ui">Aadhaar A4</span> tile, then drop <code>SUBR1992.pdf</code>.</li>
+      <li><b>Ration card:</b> click the <span class="ui">Ration Card</span> tile, type RC number <code>2821148232</code>, then drop <code>YALA1947.pdf</code> (needs internet).</li>
+      <li>Each file appears in the <b>Exports</b> list with a Front/Back preview. Click a preview to see it large.</li>
+    </ol>
+    <div class="warn"><b>Skip</b> <code>DL-Type-2.pdf</code> and <code>MUNIREDDY_DL.pdf</code> &ndash; those two files are empty (0 bytes).</div>
+  </section>
+
+  <section id="epson">
+    <h2><span class="n">8</span>Epson L8050: card printer settings</h2>
+    <p class="lead">Open <span class="ui">Settings</span> (top right) &rarr; <span class="ui">Card printer &middot; Epson</span>.</p>
+    <table>
+      <tr><th style="width:34%">Setting</th><th>Set it to</th></tr>
+      <tr><td><b>Printer</b></td><td><b>EPSON L8050 Series</b> &ndash; the badge should say <b>Ready</b>.</td></tr>
+      <tr><td><b>Card settings</b></td><td><span class="ui">Automatic (Photo+ compatible)</span> &ndash; uses the ID Card Tray and PVC card paper type, like Epson Photo+.</td></tr>
+      <tr><td><b>Quality &amp; colour (Epson)</b></td><td>Leave as it is for the first test. Later you can click <span class="ui">Set up&hellip;</span> / <span class="ui">Change&hellip;</span> to choose Epson quality (e.g. High) &ndash; Epson&rsquo;s own window opens.</td></tr>
+      <tr><td><b>Borderless</b></td><td><b>On</b> (prints edge to edge, like Photo+ &ldquo;Plastic ID card &ndash; borderless&rdquo;).</td></tr>
+      <tr><td><b>Move right / Move down</b></td><td><code>0</code> and <code>0</code> to start. You change these only after the alignment test.</td></tr>
+      <tr><td><b>Card width / height</b></td><td><code>85.6</code> &times; <code>54</code> mm (standard PVC card).</td></tr>
+      <tr><td><b>Scale</b></td><td><code>100</code> %</td></tr>
+      <tr><td><b>Rotation</b></td><td><b>90&deg; (portrait, like Photo+)</b></td></tr>
+    </table>
+    <p>Click <span class="ui">Save printer settings</span>.</p>
+    <div class="tip"><b>The detected line</b> under Borderless should show the tray as the <b>Disc/ID Card Tray</b> and a PVC ID card paper type. If it says something is missing, switch to <span class="ui">Custom</span> and click <span class="ui">Set up&hellip;</span> &rarr; in Epson&rsquo;s window choose Paper Source <b>Disc/ID Card Tray</b> and the <b>PVC ID Card</b> paper type &rarr; OK.</div>
+  </section>
+
+  <section id="epsontest">
+    <h2><span class="n">9</span>Epson: alignment test on a blank card</h2>
+    <ol class="steps">
+      <li>Still in <span class="ui">Card printer &middot; Epson</span>, scroll to <b>Alignment test</b> &rarr; click <span class="ui">Print alignment test</span>.</li>
+      <li>Wait until the printer&rsquo;s <b>disc light blinks</b>. Put a <b>clean blank PVC card</b> in <b>slot 1</b> of the Disc/ID Card Tray, <b>printable side up</b>, and insert the tray as the Epson manual shows.</li>
+      <li>The printer pulls the tray in and prints a black outline, an orange inner frame, centre lines, mm ticks and a <b>TOP EDGE</b> arrow.</li>
+      <li>Check the printed card:
+        <table>
+          <tr><th>What you see</th><th>What to change</th></tr>
+          <tr><td>Black outline sits on the card edges, all sides even</td><td>&#10003; Perfect &ndash; nothing to change.</td></tr>
+          <tr><td>Everything is shifted to the right by e.g. 1 mm</td><td><b>Move right</b> = <code>-1</code></td></tr>
+          <tr><td>Shifted to the left by 1 mm</td><td><b>Move right</b> = <code>1</code></td></tr>
+          <tr><td>Shifted down by 1 mm</td><td><b>Move down</b> = <code>-1</code></td></tr>
+          <tr><td>Shifted up by 1 mm</td><td><b>Move down</b> = <code>1</code></td></tr>
+          <tr><td>TOP EDGE arrow points to the bottom of the card</td><td><b>Rotation</b> = <b>270&deg;</b></td></tr>
+          <tr><td>Print is slightly too big / too small on all sides</td><td><b>Scale</b> e.g. <code>99.5</code> or <code>100.5</code></td></tr>
+        </table></li>
+      <li>Click <span class="ui">Save printer settings</span> and repeat the test on the other side of the same card (or a new card) until it&rsquo;s right.</li>
+    </ol>
+    <div class="tip"><b>Use small steps</b> (0.5 mm). Measure with the ruler how far the outline is from the card edge on each side.</div>
+    <div class="warn"><b>Keep the tray clean.</b> Borderless printing leaves a little ink on the tray &ndash; wipe it with a dry tissue now and then, or the next card gets marks on the back.</div>
+  </section>
+
+  <section id="epsonprint">
+    <h2><span class="n">10</span>Epson: print a real PVC card</h2>
+    <ol class="steps">
+      <li>In <b>Exports</b>, find the card (e.g. the Aadhaar PVC from step 7) and click its <span class="ui">Print</span> button (printer icon, &ldquo;Print on a PVC card&rdquo;).</li>
+      <li>Choose <span class="ui">Front, then back</span>, copies <code>1</code> &rarr; <span class="ui">Print</span>.</li>
+      <li>When the disc light blinks, put a blank card in <b>slot 1</b>, printable side up, insert the tray. The <b>front</b> prints.</li>
+      <li>Let the ink dry for a moment. Click <span class="ui">Print back</span>, <b>turn the card over keeping the same top edge</b>, put it back in slot 1, insert the tray when the light blinks.</li>
+      <li>Check: photo brightness, colours, no white edge, back lines up with the front.</li>
+    </ol>
+    <div class="tip"><b>Card PDF</b> button in the same window downloads an exact card-size PDF &ndash; useful if you ever want to print from Epson Photo+ instead.</div>
+  </section>
+
+  <section id="canon">
+    <h2><span class="n">11</span>Canon iR: A4 settings and scale test</h2>
+    <p class="lead">Open <span class="ui">Settings</span> &rarr; <span class="ui">A4 printer &middot; Office</span>.</p>
+    <table>
+      <tr><th style="width:34%">Setting</th><th>Set it to</th></tr>
+      <tr><td><b>Printer</b></td><td>Your Canon iR printer</td></tr>
+      <tr><td><b>Colour</b></td><td><b>On</b> (Aadhaar sheets are in colour)</td></tr>
+      <tr><td><b>Resolution</b></td><td><b>600 dpi</b></td></tr>
+    </table>
+    <p style="margin-top:8px">These save automatically.</p>
+    <ol class="steps">
+      <li>Put plain A4 paper in the Canon. Click <span class="ui">Print scale test page</span>.</li>
+      <li>Measure with the ruler:
+        <ul style="margin:6px 0 0">
+          <li>The square must be exactly <b>100 &times; 100 mm</b>.</li>
+          <li>The 150 mm ruler must measure <b>150 mm</b>.</li>
+          <li>A real PVC card must fit exactly on the <b>card outline</b> (85.6 &times; 54 mm).</li>
+        </ul></li>
+      <li>Some corner marks may be missing at the paper edge &ndash; that is only the printer&rsquo;s margin and is fine.</li>
+    </ol>
+    <div class="warn"><b>If the square is NOT 100 mm</b> (e.g. 97 mm): open Windows <b>Printers &amp; scanners</b> &rarr; Canon &rarr; <span class="ui">Printing preferences</span>. Set paper size <b>A4</b>, and turn off <b>Fit to page / Scaling / Enlarge-Reduce / Manual scaling</b> (or set it to 100%). Click OK and print the scale test again.</div>
+  </section>
+
+  <section id="aadhaar">
+    <h2><span class="n">12</span>Canon: print Aadhaar A4 sheets</h2>
+    <ol class="steps">
+      <li>On the left, click the <span class="ui">Aadhaar A4</span> tile, then drop the customer&rsquo;s e-Aadhaar PDF.</li>
+      <li>The result has three sheets: <b>Full</b> (whole page with the green tick + time), <b>Both</b> (front &amp; back card cut-outs) and <b>Small</b>.</li>
+      <li>Click the row&rsquo;s <span class="ui">Print</span> button (&ldquo;Print A4 sheets&rdquo;). Tick the sheets you need, set copies, keep <b>Colour</b> on &rarr; <span class="ui">Print</span>.</li>
+      <li>Cut along the lines and laminate. The card part should match a real card&rsquo;s size (85.6 &times; 54 mm).</li>
+    </ol>
+    <div class="ok"><b>Done:</b> once the scale test is right, every Aadhaar sheet prints at the correct size &ndash; the tool always prints at exactly 100%.</div>
+  </section>
+
+  <section id="trouble">
+    <h2><span class="n">13</span>If something goes wrong</h2>
+    <table>
+      <tr><th style="width:40%">Problem</th><th>Fix</th></tr>
+      <tr><td>&ldquo;Python is not installed&rdquo; / &ldquo;python is not recognized&rdquo;</td><td>Install Python 3.12 again with <b>Add python.exe to PATH</b> ticked (step 3).</td></tr>
+      <tr><td>Browser shows &ldquo;This site can&rsquo;t be reached&rdquo;</td><td>The black window is closed &ndash; double-click <code>Start Website.bat</code> again.</td></tr>
+      <tr><td>&ldquo;The Windows print service (Print Spooler) is not running&rdquo;</td><td>Press <b>Win + R</b>, type <code>services.msc</code>, Enter &rarr; find <b>Print Spooler</b> &rarr; right-click &rarr; <span class="ui">Start</span>. Refresh the website.</td></tr>
+      <tr><td>&ldquo;No printers found&rdquo;</td><td>Install the printer driver (step 6) and refresh the website.</td></tr>
+      <tr><td>Epson doesn&rsquo;t take the tray / nothing prints</td><td>Insert the tray only <b>after</b> the disc light blinks. Check the card is in slot 1, printable side up.</td></tr>
+      <tr><td>Card print is shifted or upside down</td><td>Repeat the alignment test and adjust Move right / Move down / Rotation (step 9).</td></tr>
+      <tr><td>A4 sheet card is too small</td><td>Turn off &ldquo;Fit to page&rdquo; in the Canon printing preferences (step 11).</td></tr>
+      <tr><td>Ration card: &ldquo;Could not reach the AePDS site&rdquo;</td><td>Check internet. The AePDS site is sometimes slow &ndash; try again in a minute.</td></tr>
+      <tr><td>&ldquo;Empty file&rdquo; / &ldquo;Cannot open empty stream&rdquo;</td><td>The PDF is broken or 0 bytes &ndash; ask the customer to send it again.</td></tr>
+      <tr><td>Anything else</td><td>Look at the <b>black window</b> &ndash; the error text is there. Take a photo of it and of the screen.</td></tr>
+    </table>
+  </section>
+
+  <section id="daily">
+    <h2><span class="n">14</span>Daily use (short version)</h2>
+    <ol class="steps">
+      <li>Double-click <code>Start Website.bat</code> (desktop shortcut).</li>
+      <li>Pick the card type (or Auto-detect) &rarr; drop the customer&rsquo;s PDF(s).</li>
+      <li>Check the preview. Ration card: fix Telugu names / order in the row&rsquo;s <b>&#8943;</b> menu &rarr; <span class="ui">Update card</span>.</li>
+      <li><b>PVC card:</b> <span class="ui">Print</span> &rarr; Front, then back &rarr; card in slot 1 when the light blinks &rarr; flip &rarr; Print back.</li>
+      <li><b>Aadhaar A4:</b> <span class="ui">Print</span> &rarr; choose sheets &rarr; Print on the Canon &rarr; cut &amp; laminate.</li>
+      <li>Close the black window at the end of the day.</li>
+    </ol>
+    <div class="tip"><b>Your printer settings are saved</b> in <span class="path">plugins\epson_pvc\config.json</span> and <span class="path">plugins\office_print\config.json</span>. If you ever replace the folder with a newer version, copy these two files into the new folder.</div>
+  </section>
+
+  <footer>Card Print Studio &middot; shop setup guide</footer>
+</div>
+</body>
+</html>

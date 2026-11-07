@@ -9,7 +9,7 @@
   function problem(s) {
     if (!s.service.ok) return s.service.error;
     if (!s.service.printers.length) return 'No printers are installed on this PC. Install the Epson L8050 driver first.';
-    if (!s.printer) return 'Choose the printer in Settings → Plugins.';
+    if (!s.printer) return 'Choose the printer in Settings → Card printer · Epson.';
     return '';
   }
 
