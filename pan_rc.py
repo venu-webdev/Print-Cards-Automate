@@ -9,6 +9,8 @@ RC  : each page has one card-sized artwork at the top-left; it is rendered as-is
 """
 import re
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pymupdf
@@ -244,8 +246,43 @@ def pan_card_images(doc):
         rgb, filled = _fill_corners(rgb, ppm, radius)
         print(f"    PAN {side}: {rect.width / 72 * 25.4:.1f} x {rect.height / 72 * 25.4:.1f} mm, "
               f"corner radius {radius:.1f} mm" + (f", signature made transparent" if side == "Front" and sig else ""))
-        out.append((side, Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS)))
+        img = Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS)
+        if side == "Back":
+            img = apply_hologram(img)
+        out.append((side, img))
     return out
+
+
+HOLOGRAM_IMG = Path(__file__).resolve().parent / "templates" / "pan_hologram.png"   # cut from a scanned PAN card
+
+
+def apply_hologram(img):
+    """Put the hologram sticker on the grey 'HOLOGRAM' placeholder of the e-PAN back."""
+    if not HOLOGRAM_IMG.exists():
+        return img
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    W, H = img.size
+    sat, g = a.max(2) - a.min(2), a.mean(2)
+    box = (sat < 25) & (g > 150) & (g < 235)
+    box[:, : int(W * 0.55)] = False                     # placeholder is in the top-right part
+    box[int(H * 0.6):, :] = False
+    m = cv2.morphologyEx(box.astype(np.uint8) * 255, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    n, _, st, _ = cv2.connectedComponentsWithStats(m)
+    found = None
+    if n > 1:
+        i = 1 + int(np.argmax(st[1:, 4]))
+        x, y, w, h, area = st[i]
+        if area > 0.6 * w * h and 0.8 < w / max(h, 1) < 1.25 and 0.12 * W < w < 0.3 * W:
+            found = (x + w / 2, y + h / 2, max(w, h) + 3)              # cover the box completely
+    if found is None:                    # layouts without the 'HOLOGRAM' box (older e-PAN) stay as they are
+        return img
+    cx, cy, size = found
+    s = round(size)
+    sticker = Image.open(HOLOGRAM_IMG).convert("RGBA").resize((s, s), Image.LANCZOS)
+    out = img.convert("RGBA")
+    out.alpha_composite(sticker, (round(cx - s / 2), round(cy - s / 2)))
+    print(f"    PAN Back: hologram sticker {s}px at ({cx:.0f}, {cy:.0f})")
+    return out.convert("RGB")
 
 
 # ------------------------------------------------------------------ RC
