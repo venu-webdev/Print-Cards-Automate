@@ -1,983 +1,1182 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Card Print Studio</title>
-<script>
-  try { const t = localStorage.getItem('cps-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
-</script>
-<link rel="preconnect" href="https://api.fontshare.com">
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap">
-<style>
-/* Card Print Studio - app shell.
-   Neutral ink system, one brand accent (print orange) used for focus, active
-   states and the brand mark only. 1px hairlines instead of heavy shadows,
-   8px controls / 12px surfaces, General Sans + Geist Mono for numbers. */
-:root {
-  color-scheme: light;
-  --bg: #f7f7f5; --surface: #ffffff; --surface-2: #f3f3f1; --surface-3: #ebebe8; --hover: #f5f5f3;
-  --line: #e7e6e2; --line-2: #d8d7d2;
-  --text: #17171a; --text-2: #3f3f46; --muted: #6e6e76; --faint: #a1a1a8;
-  --primary: #17171a; --on-primary: #ffffff;
-  --accent: #ea6a1f; --accent-soft: #fdf0e7; --ring: rgba(234, 106, 31, .35);
-  --ok: #15803d; --err: #c2410c; --err-soft: #fff1ea; --warn: #a16207;
-  --shadow-1: 0 1px 2px rgba(23, 23, 26, .05);
-  --shadow-2: 0 1px 2px rgba(23, 23, 26, .04), 0 6px 20px -8px rgba(23, 23, 26, .14);
-  --shadow-3: 0 12px 40px -12px rgba(23, 23, 26, .35);
-  --font: "General Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-  --mono: "Geist Mono", ui-monospace, Consolas, monospace;
-  --r-ctl: 8px; --r-sur: 12px;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  color-scheme: dark;
-  --bg: #0c0c0d; --surface: #141416; --surface-2: #1a1a1d; --surface-3: #232327; --hover: #1c1c20;
-  --line: #26262b; --line-2: #34343a;
-  --text: #ededee; --text-2: #d1d1d6; --muted: #9c9ca5; --faint: #6c6c74;
-  --primary: #ededee; --on-primary: #111113;
-  --accent: #f4812f; --accent-soft: #2b1a0f; --ring: rgba(244, 129, 47, .4);
-  --ok: #4ade80; --err: #fb923c; --err-soft: #2a1710; --warn: #facc15;
-  --shadow-1: 0 1px 0 rgba(0, 0, 0, .3); --shadow-2: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6); --shadow-3: 0 16px 48px -12px rgba(0,0,0,.8);
-} }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0c0c0d; --surface: #141416; --surface-2: #1a1a1d; --surface-3: #232327; --hover: #1c1c20;
-  --line: #26262b; --line-2: #34343a;
-  --text: #ededee; --text-2: #d1d1d6; --muted: #9c9ca5; --faint: #6c6c74;
-  --primary: #ededee; --on-primary: #111113;
-  --accent: #f4812f; --accent-soft: #2b1a0f; --ring: rgba(244, 129, 47, .4);
-  --ok: #4ade80; --err: #fb923c; --err-soft: #2a1710; --warn: #facc15;
-  --shadow-1: 0 1px 0 rgba(0, 0, 0, .3); --shadow-2: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6); --shadow-3: 0 16px 48px -12px rgba(0,0,0,.8);
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
-body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); letter-spacing: -.003em;
-       -webkit-font-smoothing: antialiased; }
-button, input { font: inherit; color: inherit; }
-button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mono { font-family: var(--mono); font-feature-settings: "zero"; }
-[hidden] { display: none !important; }
-svg.i { width: 16px; height: 16px; flex: none; }
-
-/* ---------- buttons ---------- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 14px;
-       border-radius: var(--r-ctl); border: 1px solid var(--line-2); background: var(--surface); color: var(--text);
-       font-weight: 500; font-size: 13.5px; white-space: nowrap; box-shadow: var(--shadow-1);
-       transition: background .12s, border-color .12s, box-shadow .12s, transform .06s; }
-.btn:hover { background: var(--hover); border-color: var(--line-2); }
-.btn:active { transform: translateY(.5px); }
-.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-.btn.primary:hover { opacity: .9; background: var(--primary); }
-.btn.quiet { border-color: transparent; background: transparent; box-shadow: none; color: var(--text-2); }
-.btn.quiet:hover { background: var(--surface-3); }
-.btn.icon { width: 36px; padding: 0; }
-.btn.lg { height: 40px; padding: 0 16px; font-size: 14px; }
-.btn.lg.icon { width: 40px; }
-.btn:disabled { opacity: .45; pointer-events: none; }
-.kbd { font: 11px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
-
-/* ---------- shell ---------- */
-.app { height: 100vh; display: grid; grid-template-rows: 56px minmax(0, 1fr); }
-.topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -.015em; min-width: 0; }
-.mark { width: 28px; height: 28px; border-radius: 8px; background: var(--primary); display: grid; place-items: center; position: relative; flex: none; }
-.mark::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 3px; background: var(--accent); border: 2px solid var(--surface); }
-.mark svg { width: 16px; height: 16px; color: var(--on-primary); }
-.plan { font-size: 11.5px; font-weight: 500; color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; padding: 0 6px; line-height: 18px; }
-.crumb { color: var(--faint); font-weight: 400; }
-.crumb b { color: var(--text-2); font-weight: 500; }
-.topbar .grow { flex: 1; }
-.search { display: flex; align-items: center; gap: 8px; height: 36px; width: min(420px, 38vw); padding: 0 10px;
-          border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface-2); color: var(--muted); }
-.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13.5px; }
-.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); background: var(--surface); }
-
-.body { display: grid; grid-template-columns: 344px minmax(0, 1fr); min-height: 0; }
-.side { border-right: 1px solid var(--line); background: var(--surface); overflow: auto; display: flex; flex-direction: column; }
-.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-
-/* ---------- side: new job ---------- */
-.sec { padding: 18px 18px 6px; }
-.sec h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-.sec .lead { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
-.step { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 13px; font-weight: 500; color: var(--text-2); }
-.step .n { width: 18px; height: 18px; border-radius: 5px; background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
-.auto { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
-        background: var(--surface); text-align: left; position: relative; }
-.auto .ic { width: 36px; height: 36px; border-radius: 9px; overflow: hidden; flex: none; }
-.auto .ic svg { width: 36px; height: 36px; display: block; }
-.auto b { display: block; font-size: 13.5px; font-weight: 600; }
-.auto small { display: block; font-size: 12px; color: var(--muted); }
-.group { margin: 12px 0 6px; font-size: 12px; color: var(--muted); }
-.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.tile { display: grid; justify-items: center; gap: 7px; padding: 10px 4px 9px; border-radius: 10px; border: 1px solid var(--line);
-        background: var(--surface); position: relative; }
-.tile .ic { width: 48px; height: 48px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-1); }
-.tile .ic svg { width: 48px; height: 48px; display: block; }
-.tile b { font-size: 12.5px; font-weight: 600; line-height: 1.2; text-align: center; }
-.tile:hover, .auto:hover { border-color: var(--line-2); background: var(--hover); }
-.pick[aria-checked="true"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); background: var(--surface); }
-.pick .tick { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--text); color: var(--surface);
-              display: none; place-items: center; }
-.auto .tick { top: 50%; right: 10px; transform: translateY(-50%); }
-.pick[aria-checked="true"] .tick { display: grid; }
-.tick svg { width: 10px; height: 10px; }
-
-.drop { display: grid; justify-items: center; gap: 6px; padding: 20px 14px; border: 1.5px dashed var(--line-2); border-radius: 12px;
-        background: var(--surface-2); text-align: center; cursor: pointer; transition: border-color .12s, background .12s; }
-.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-.drop .up { width: 36px; height: 36px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; box-shadow: var(--shadow-1); }
-.drop b { font-weight: 600; font-size: 14px; }
-.drop span { font-size: 12.5px; color: var(--muted); }
-.drop .as { color: var(--text-2); font-weight: 500; }
-.dest { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 12.5px; }
-.dest .p { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
-.dest .lbl { color: var(--muted); }
-.auto-on { font-size: 11.5px; color: var(--ok); font-weight: 500; }
-.session { margin-top: auto; padding: 14px 18px 18px; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.stat { padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
-.stat b { display: block; font: 600 18px var(--font); letter-spacing: -.02em; }
-.stat span { font-size: 11.5px; color: var(--muted); }
-.stat.attn b { color: var(--err); }
-button.stat { border: 0; text-align: left; }
-
-/* ---------- main: toolbar ---------- */
-.mhead { display: flex; align-items: center; gap: 12px; padding: 16px 20px 0; flex-wrap: wrap; }
-.mhead h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
-.mhead .count { color: var(--muted); font-size: 13px; }
-.mhead .grow { flex: 1; }
-.tabs { display: flex; gap: 2px; padding: 12px 20px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
-.tab { border: 0; background: none; padding: 8px 10px 10px; font-size: 13px; color: var(--muted); font-weight: 500; position: relative; white-space: nowrap;
-       display: inline-flex; gap: 6px; align-items: center; border-radius: 6px 6px 0 0; }
-.tab:hover { color: var(--text); }
-.tab .c { font: 11.5px var(--mono); color: var(--faint); }
-.tab[aria-selected="true"] { color: var(--text); }
-.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--text); border-radius: 2px; }
-.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--surface-3); }
-.seg button { border: 0; background: transparent; height: 30px; padding: 0 10px; border-radius: 7px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 500; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
-.scroller { flex: 1; min-height: 0; overflow: auto; padding: 0 20px 24px; }
-
-/* ---------- list (table) ---------- */
-.table { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r-sur); background: var(--surface); overflow: hidden; box-shadow: var(--shadow-1); }
-.cols, .row { display: grid; grid-template-columns: minmax(150px, 2fr) minmax(0, .9fr) minmax(150px, 1fr) minmax(142px, 1.1fr) 112px var(--acts-w, 312px); align-items: center; gap: 14px; padding: 0 14px; }
-.cols { height: 36px; font-size: 12px; color: var(--muted); font-weight: 500; background: var(--surface-2); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
-.row { min-height: 72px; border-bottom: 1px solid var(--line); }
-.row:last-child { border-bottom: 0; }
-.row:hover { background: var(--hover); }
-.holder { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.ava { width: 40px; height: 40px; border-radius: 50%; flex: none; position: relative; background: var(--surface-3); display: grid; place-items: center;
-       font-weight: 600; font-size: 14px; color: var(--text-2); }
-.ava img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
-.ava .tb { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 2px var(--surface); }
-.ava .tb svg { width: 18px; height: 18px; display: block; }
-.ava.sq { border-radius: 10px; overflow: hidden; }
-.ava.sq svg { width: 40px; height: 40px; }
-.who { min-width: 0; }
-.who b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.who b.unk { color: var(--muted); font-weight: 500; }
-.who small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chip { max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--surface); white-space: nowrap; }
-.chip i { width: 7px; height: 7px; border-radius: 2px; }
-.docno { font: 13px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-.docno .l { font: 11.5px var(--font); color: var(--muted); margin-right: 6px; }
-.ref { white-space: nowrap; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 4px; font: 12.5px var(--mono); color: var(--text-2); border: 0; background: none; padding: 2px 4px; margin-left: -4px; border-radius: 5px; }
-.ref:hover { background: var(--surface-3); }
-.ref svg { width: 12px; height: 12px; color: var(--faint); }
-.when { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
-.saved-tag { font-size: 11.5px; color: var(--ok); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
-
-/* thumbnail with flip */
-.flip { position: relative; aspect-ratio: 1016 / 638; perspective: 900px; border-radius: 6px; cursor: zoom-in; }
-.flip .in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.2, .7, .2, 1); }
-.flip.back .in { transform: rotateY(180deg); }
-.flip .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: inherit; overflow: hidden; border: 1px solid var(--line); background: var(--surface-3); }
-.flip .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.flip .face.b { transform: rotateY(180deg); }
-.flip .tools { position: absolute; inset: auto 6px 6px auto; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2; }
-.flip:hover .tools, .flip:focus-within .tools { opacity: 1; }
-@media (hover: none) { .flip .tools { opacity: 1; } }
-.ft { height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: rgba(17, 17, 19, .78); color: #fff; font-size: 11.5px; font-weight: 500;
-      display: inline-flex; align-items: center; gap: 5px; backdrop-filter: blur(6px); }
-.ft:hover { background: rgba(17, 17, 19, .92); }
-.ft svg { width: 13px; height: 13px; }
-.side-tag { position: absolute; left: 6px; top: 6px; z-index: 2; height: 18px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 600;
-            background: rgba(17, 17, 19, .7); color: #fff; display: inline-flex; align-items: center; pointer-events: none; }
-.row .flip { width: 112px; }
-.flip.sheet { aspect-ratio: auto; height: 100%; }
-.flip.sheet .face { background: #fff; }
-.flip.sheet .face img { object-fit: contain; }
-.row .flip.sheet { width: 112px; height: 70px; }
-.gcard .flip.sheet { height: auto; aspect-ratio: 1016 / 638; }
-.row .flip .tools { inset: auto 4px 4px auto; }
-.row .flip .ft { height: 22px; padding: 0 6px; font-size: 11px; }
-.row .flip .ft.zoom { display: none; }
-.skel { background: linear-gradient(90deg, var(--surface-3), var(--surface-2), var(--surface-3)); background-size: 200% 100%; animation: sh 1.2s linear infinite; border-radius: 6px; }
-@keyframes sh { to { background-position: -200% 0; } }
-.row .skel.thumb { width: 112px; aspect-ratio: 1016 / 638; }
-.skel.line { height: 10px; width: 70%; } .skel.line.s { width: 40%; margin-top: 6px; }
-
-/* expanded row: rename & per-side */
-.more { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px 14px; padding: 2px 0 14px 52px; align-items: end; }
-.field { display: grid; gap: 4px; }
-.field label { font-size: 12px; color: var(--muted); }
-.name { display: flex; align-items: center; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); overflow: hidden; }
-.name input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 0 10px; font: 13px var(--mono); }
-.name span { color: var(--faint); font: 12px var(--mono); padding: 0 6px 0 2px; }
-.name .btn { height: 34px; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; }
-.name:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
-.note { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 0 0 14px 52px; }
-.note.err { color: var(--err); }
-.lock { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.lock input { height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 0 10px; background: var(--surface); min-width: 200px; }
-.lock input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
-.hint { color: var(--muted); font-size: 12px; }
-
-/* ---------- grid ---------- */
-.grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: stretch; }
-.gcard { border: 1px solid var(--line); border-radius: var(--r-sur); background: var(--surface); box-shadow: var(--shadow-1); overflow: hidden;
-         transition: box-shadow .15s, border-color .15s; }
-.gcard:hover { box-shadow: var(--shadow-2); border-color: var(--line-2); }
-.gcard .flip { margin: 10px 10px 0; border-radius: 8px; }
-.gcard .skel.thumb { margin: 10px 10px 0; aspect-ratio: 1016 / 638; }
-.gcard { display: flex; flex-direction: column; }
-.gbody { padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
-.gmeta { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; min-height: 24px; font-size: 12px; color: var(--muted); }
-.gmeta > * { flex: none; } .gmeta .docno { flex: 0 1 auto; min-width: 0; }
-.gref { min-height: 22px; display: flex; align-items: center; }
-.gacts { display: flex; gap: 6px; }
-.acts .btn.primary { min-width: 122px; }
-.gacts { flex-wrap: nowrap; margin-top: auto; } .gacts .btn.primary { flex: 1; min-width: 0; }
-.gacts .btn[data-act="save"] { width: 36px; padding: 0; flex: none; } .gacts .btn[data-act="save"] .lbl-s { display: none; }
-.who small .ok { color: var(--ok); font-weight: 500; }
-.gcard .more { grid-template-columns: 1fr; padding: 0 12px 12px; }
-.rc-edit { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.rc-edit .text { font-size: 15px; }
-.rc-rows { display: grid; gap: 6px; }
-.rc-row { display: grid; grid-template-columns: 40px 1fr 130px auto; gap: 8px; align-items: end; }
-.rc-row .rc-no { align-self: center; font-size: 13px; color: var(--muted, #888); }
-.rc-who small { display: block; font-size: 12px; color: var(--muted, #888); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-mv { display: flex; gap: 4px; }
-@media (max-width: 560px) { .rc-row { grid-template-columns: 34px 1fr; } .rc-row .rc-dob, .rc-row .rc-mv { grid-column: 2; } }
-.gcard .note { padding: 0 12px 12px; }
-
-/* ---------- empty ---------- */
-.empty { margin: 48px auto; max-width: 440px; text-align: center; display: grid; justify-items: center; gap: 10px; }
-.empty .icons { display: flex; gap: 8px; margin-bottom: 6px; }
-.empty .icons span { width: 40px; height: 40px; border-radius: 11px; overflow: hidden; box-shadow: var(--shadow-1); }
-.empty .icons svg { width: 40px; height: 40px; display: block; }
-.empty h3 { margin: 0; font-size: 16px; font-weight: 600; }
-.empty p { margin: 0; color: var(--muted); font-size: 13.5px; }
-
-/* ---------- overlays ---------- */
-.overlay { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; padding: 20px; background: rgba(10, 10, 12, .55); backdrop-filter: blur(3px); }
-.overlay.open { display: grid; }
-.dialog { width: min(560px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-3); }
-.dhead { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
-.dhead h3 { margin: 0; flex: 1; font-size: 15px; font-weight: 600; }
-.dbody { padding: 16px; display: grid; gap: 18px; }
-.dfoot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
-.dbody .t { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; display: block; }
-.text { width: 100%; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 0 10px; background: var(--surface); outline: 0; }
-.text:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
-.text.mono { font: 13px var(--mono); }
-.rowf { display: flex; gap: 8px; } .rowf .text { flex: 1; min-width: 0; }
-.tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.token { font: 12px var(--mono); padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); }
-.token:hover { border-color: var(--text); }
-.token.reset { font-family: var(--font); color: var(--accent); }
-.sw { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.sw input { appearance: none; width: 38px; height: 22px; border-radius: 99px; background: var(--line-2); position: relative; flex: none; cursor: pointer; transition: background .15s; }
-.sw input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
-.sw input:checked { background: var(--text); } .sw input:checked::after { left: 19px; }
-.lightbox .dialog { width: min(1040px, 100%); background: var(--surface); padding: 0; }
-.lb-img { padding: 14px; background: var(--surface-2); }
-.lb-img img { max-height: calc(100vh - 140px); object-fit: contain; margin: 0 auto; width: 100%; display: block; border-radius: 8px; box-shadow: var(--shadow-2); }
-.toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 60; }
-.toast { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--text); color: var(--surface);
-         font-size: 13.5px; box-shadow: var(--shadow-3); animation: up .18s ease; max-width: 420px; }
-.toast.err { background: var(--err); color: #fff; }
-.toast button { border: 0; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent); padding: 0; }
-@keyframes up { from { transform: translateY(6px); opacity: 0; } }
-.spin { width: 14px; height: 14px; border: 2px solid var(--line-2); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
-
-/* ---------- plugins ---------- */
-a.btn { text-decoration: none; }
-.has-plugins .row .acts .btn[data-act="save"] { width: 40px; padding: 0; }
-.has-plugins .row .acts .btn[data-act="save"] .lbl-s { display: none; }
-.plugins { display: grid; gap: 10px; }
-.plug { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
-.plug-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
-.plug-head b { font-size: 13.5px; } .plug-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
-.plug-err { color: var(--err); font-size: 12.5px; }
-.plug-panel:empty { display: none; }
-.plug-panel { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 10px; }
-
-/* ---------- responsive ---------- */
-@media (max-width: 1280px) {
-  .cols, .row { grid-template-columns: minmax(150px, 2fr) minmax(0, 1fr) minmax(150px, 1fr) 112px var(--acts-w, 312px); }
-  .c-ref { display: none !important; }
-  .who .refline { display: block; }
-}
-.who .refline { display: none; }
-@media (max-width: 1200px) {
-  .cols, .row { grid-template-columns: minmax(150px, 1.6fr) minmax(150px, 1fr) 112px calc(var(--acts-w, 312px) - 50px); }
-  .c-type { display: none !important; }
-  .c-when { display: none !important; }
-  .acts .btn .lbl-s { display: none; }
-}
-@media (max-width: 900px) {
-  html, body { height: auto; }
-  .app { height: auto; display: block; }
-  .body { display: block; }
-  .side { border-right: 0; border-bottom: 1px solid var(--line); }
-  .session { margin-top: 0; }
-  .scroller { overflow: visible; }
-  .topbar .search { display: none; }
-  .crumb { display: none; }
-}
-@media (max-width: 700px) {
-  .cols { display: none; }
-  .row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
-  .row .c-type, .row .c-doc { display: none; }
-  .row .c-prev { grid-row: 1 / span 2; grid-column: 2; }
-  .row .acts { grid-column: 1 / -1; justify-content: flex-start; }
-  .more, .note { grid-template-columns: 1fr; padding-left: 0; }
-  .mhead .btn .lbl, .topbar .btn .lbl { display: none; }
-  .scroller, .mhead, .tabs { padding-left: 12px; padding-right: 12px; }
-}
-@media (max-width: 1600px) {
-  .has-plugins .cols, .has-plugins .row { grid-template-columns: minmax(150px, 2fr) minmax(150px, 1fr) minmax(142px, 1.1fr) 112px var(--acts-w, 312px); }
-  .has-plugins .c-type { display: none !important; }
-}
-@media (max-width: 1280px) {
-  .has-plugins .cols, .has-plugins .row { grid-template-columns: minmax(120px, 2fr) minmax(140px, 1fr) 112px calc(var(--acts-w, 312px) - 80px); }
-}
-@media (max-width: 700px) { .has-plugins .row { grid-template-columns: minmax(0, 1fr) auto; } }
-@media (prefers-reduced-motion: reduce) { .flip .in, .skel, .spin { transition: none; animation: none; } }
-</style>
-</head>
-<body>
-<div class="app">
-  <header class="topbar">
-    <div class="brand">
-      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/></svg></span>
-      Card Print Studio <span class="plan">Pro</span>
-      <span class="crumb">/ <b>Exports</b></span>
-    </div>
-    <div class="grow"></div>
-    <label class="search"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="search" placeholder="Search name, document no. or job ref" spellcheck="false" aria-label="Search exports"><span class="kbd">/</span></label>
-    <div class="grow"></div>
-    <button class="btn quiet icon" id="themeBtn" aria-label="Switch light or dark mode"><svg class="i" id="themeIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-    <button class="btn quiet" id="openFolderBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lbl">Open folder</span></button>
-    <button class="btn" id="settingsBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span class="lbl">Settings</span></button>
-  </header>
-
-  <div class="body">
-    <aside class="side" aria-label="New job">
-      <div class="sec">
-        <h2>New job</h2>
-        <p class="lead">Pick the card type, then add one PDF or a whole batch.</p>
-        <div class="step"><span class="n">1</span>Card type</div>
-        <div id="types" role="radiogroup" aria-label="Card type"></div>
-        <div id="rcBox" hidden style="margin:12px 0 0">
-          <label class="t" for="rcNo" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Rice card (RC) number</label>
-          <input class="text mono" id="rcNo" inputmode="numeric" placeholder="10-digit RC number" autocomplete="off">
-          <p class="hint" style="margin:4px 0 0">Members, shop and district come from AePDS. Upload the <b>head of family's</b> e-Aadhaar for the photo, DOB and address.</p>
-        </div>
-        <div class="step"><span class="n">2</span>Add PDFs</div>
-        <label class="drop" id="drop">
-          <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
-          <span class="up"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <b>Drop PDFs or click to choose</b>
-          <span>Select many at once &ndash; processed as <span class="as" id="chosenType">Auto-detect</span></span>
-        </label>
-        <div class="dest">
-          <span class="lbl">Save to</span><span class="p" id="destPath">…</span>
-          <span class="auto-on" id="autoPill" hidden>Auto-save</span>
-          <button class="btn quiet" id="changeDest" style="height:26px;padding:0 8px;font-size:12.5px">Change</button>
-        </div>
-      </div>
-      <div class="session" aria-label="This session">
-        <div class="stat"><b id="stReady">0</b><span>Ready</span></div>
-        <div class="stat"><b id="stSaved">0</b><span>Saved</span></div>
-        <button class="stat attn" id="stAttnBtn" title="Show items that need attention"><b id="stAttn">0</b><span>Need action</span></button>
-      </div>
-    </aside>
-
-    <main class="main">
-      <div class="mhead">
-        <h1>Exports</h1><span class="count" id="count"></span>
-        <div class="grow"></div>
-        <div class="seg" role="group" aria-label="View">
-          <button data-view="rows" aria-pressed="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>List</button>
-          <button data-view="cards" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>Grid</button>
-        </div>
-        <button class="btn" id="zipAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg><span class="lbl">Download all</span></button>
-        <button class="btn primary" id="saveAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg><span class="lbl">Save all to folder</span></button>
-        <button class="btn quiet" id="clearAll" title="Remove finished items from this list (files on disk are kept)">Clear</button>
-      </div>
-      <nav class="tabs" id="tabs" role="tablist" aria-label="Filter by card type"></nav>
-      <div class="scroller" id="scroller">
-        <div id="results"></div>
-        <div class="empty" id="empty">
-          <div class="icons" id="emptyIcons"></div>
-          <h3>No exports yet</h3>
-          <p>Choose a card type on the left and add the PDFs. You can select a whole batch at once &ndash; each PDF becomes its own front &amp; back export here.</p>
-        </div>
-      </div>
-    </main>
-  </div>
-</div>
-
-<!-- settings -->
-<div class="overlay" id="settings">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="setTitle">
-    <div class="dhead"><h3 id="setTitle">Settings</h3><button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="dbody">
-      <div><label class="t" for="sFolder">Save location</label>
-        <div class="rowf"><input class="text mono" id="sFolder" spellcheck="false"><button class="btn" id="browseBtn">Browse…</button></div>
-        <p class="hint">&ldquo;Save&rdquo; writes files here. &ldquo;Download&rdquo; uses your browser&rsquo;s Downloads folder.</p></div>
-      <div class="sw"><div><label class="t" for="sAuto">Auto-save after processing</label><p class="hint" style="margin:0">Every finished card is saved to the folder above straight away.</p></div><input type="checkbox" id="sAuto"></div>
-      <div><label class="t" for="sPattern">File name pattern</label>
-        <input class="text mono" id="sPattern" spellcheck="false">
-        <div class="tokens">
-          <button class="token" data-t="{type}">{type}</button><button class="token" data-t="{name}">{name}</button>
-          <button class="token" data-t="{id4}">{id4}</button><button class="token" data-t="{side}">{side}</button>
-          <button class="token" data-t="{ref}">{ref}</button><button class="token" data-t="{date}">{date}</button>
-          <button class="token" data-t="{file}">{file}</button><button class="token reset" data-reset="1">Reset</button>
-        </div>
-        <p class="hint">Example: <b class="mono" id="patPreview"></b><br>{type} DL / VOTER / AADHAR_PVC / PAN / RC &ensp; {name} holder &ensp; {id4} last 4 of the document no. &ensp; {ref} job ref</p></div>
-      <div><span class="t">File extension</span><div class="seg" id="sExt"><button data-v=".jpeg">.jpeg</button><button data-v=".jpg">.jpg</button></div></div>
-      <div><span class="t">Plugins</span><p class="hint" style="margin:0 0 8px">Optional features. Switch them on or off here; delete a folder in <span class="mono">plugins/</span> to remove one completely.</p>
-        <div class="plugins" id="pluginList"><span class="hint">No plugins installed.</span></div></div>
-    </div>
-    <div class="dfoot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="saveSettings">Save settings</button></div>
-  </div>
-</div>
-
-<!-- preview -->
-<div class="overlay lightbox" id="lightbox">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
-    <div class="dhead"><h3 id="lbTitle"></h3>
-      <div class="seg" id="lbSides"><button data-s="Front">Front</button><button data-s="Back">Back</button></div>
-      <button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download</button>
-      <button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="lb-img"><img id="lbImg" alt=""></div>
-  </div>
-</div>
-
-<div class="toasts" id="toasts" aria-live="polite"></div>
-
-<script>
-const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
-let settings = {}, cardType = 'auto', jobs = [], query = '', tab = 'all';
-let view = store.get('cps-view2') === 'cards' ? 'cards' : 'rows';
-
-const ICON = {
-  auto: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAu" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0e7ff"/><stop offset="1" stop-color="#a5b4fc"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gAu)"/>
-    <path d="M17 47L39 25" stroke="#3730a3" stroke-width="5.5" stroke-linecap="round"/><path d="M36 28l3-3" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
-    <g fill="#3730a3"><path d="M46 12l2.2 5.3 5.3 2.2-5.3 2.2L46 27l-2.2-5.3-5.3-2.2 5.3-2.2z"/><path d="M52 33l1.2 2.8 2.8 1.2-2.8 1.2L52 41l-1.2-2.8-2.8-1.2 2.8-1.2z"/><path d="M24 14l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z"/></g></svg>`,
-  dl: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gDl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gDl)"/>
-    <circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-width="5"/>
-    <path d="M14.5 30.5L27 33.5M49.5 30.5L37 33.5M32 39v12" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="32" cy="33.5" r="6" fill="#fff"/><circle cx="32" cy="33.5" r="2.2" fill="#1d4ed8"/></svg>`,
-  rc: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gRc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0f766e"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gRc)"/>
-    <path d="M12 37q0-6 5-7l4.5-9.5Q23 17 27 17h10q4 0 5.5 3.5L47 30q5 1 5 7v6q0 2-2 2H14q-2 0-2-2z" fill="#fff"/>
-    <path d="M24.5 21.5h15l3.2 8H21.3z" fill="#0f766e"/>
-    <circle cx="19" cy="37.5" r="3" fill="#0f766e"/><circle cx="45" cy="37.5" r="3" fill="#0f766e"/>
-    <rect x="26" y="36" width="12" height="3.4" rx="1.2" fill="#0f766e"/>
-    <rect x="15" y="44" width="8" height="7" rx="2" fill="#fff"/><rect x="41" y="44" width="8" height="7" rx="2" fill="#fff"/></svg>`,
-  voter: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gVo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffedd5"/><stop offset="1" stop-color="#fdba74"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gVo)"/>
-    <rect x="23" y="7" width="12" height="34" rx="6" fill="#f2c28f" stroke="#b9773f" stroke-width="1.4"/>
-    <rect x="25.2" y="9" width="7.6" height="9" rx="3.8" fill="#fde4e8" stroke="#d9a3a9" stroke-width=".8"/>
-    <path d="M29 11.5v14" stroke="#4c1d95" stroke-width="3.4" stroke-linecap="round"/>
-    <rect x="21" y="33" width="27" height="24" rx="9" fill="#f2c28f" stroke="#b9773f" stroke-width="1.4"/>
-    <path d="M35 40h9M35 45.5h9M35 51h7" stroke="#b9773f" stroke-width="1.4" stroke-linecap="round"/>
-    <ellipse cx="25" cy="45" rx="8.5" ry="4.6" fill="#f5cd9f" stroke="#b9773f" stroke-width="1.4"/></svg>`,
-  pan: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gPa" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#3730a3"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gPa)"/>
-    <path d="M17 9h21l9 9v37H17z" fill="#fff"/><path d="M38 9v9h9z" fill="#c7d2fe"/>
-    <text x="32" y="38" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="800" fill="#3730a3">&#8377;</text>
-    <rect x="22" y="43" width="20" height="2.8" rx="1.4" fill="#a5b4fc"/><rect x="22" y="48.5" width="13" height="2.8" rx="1.4" fill="#a5b4fc"/></svg>`,
-  aadhaar: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAa2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4dc"/><stop offset=".55" stop-color="#ffffff"/><stop offset="1" stop-color="#e3f4e3"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gAa2)"/>
-    <image href="/img/aadhaar.png" x="5" y="11" width="54" height="42" preserveAspectRatio="xMidYMid meet"/></svg>`,
-};
-
-
-ICON.ration = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gRa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
-    <rect width="64" height="64" rx="15" fill="url(#gRa)"/><path d="M12 33h40q-2 17-20 17T12 33z" fill="#c2410c"/>
-    <g fill="#fff"><ellipse cx="22" cy="28" rx="3" ry="5" transform="rotate(-25 22 28)"/><ellipse cx="30" cy="25" rx="3" ry="5"/><ellipse cx="38" cy="26" rx="3" ry="5" transform="rotate(20 38 26)"/><ellipse cx="45" cy="29" rx="3" ry="5" transform="rotate(35 45 29)"/><ellipse cx="34" cy="31" rx="3" ry="4.5" transform="rotate(-10 34 31)"/></g>
-    <rect x="12" y="31" width="40" height="4" rx="2" fill="#9a3412"/></svg>`;
-ICON.aadhaar_lam = ICON.aadhaar.replace('</svg>', '<rect x="34" y="44" width="26" height="16" rx="4" fill="#65a30d"/><text x="47" y="56" text-anchor="middle" font-family="Segoe UI, Arial" font-size="11" font-weight="800" fill="#fff">A4</text></svg>');
-const TYPE_INFO = {
-  auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
-  aadhaar: {name: 'Aadhaar PVC',     short: 'Aadhaar',     dot: '#16a34a', sub: 'e-Aadhaar letter, locked or not'},
-  ration:  {name: 'Ration Card',     short: 'Ration Card', dot: '#c2410c', sub: 'Head of family\'s e-Aadhaar + RC number (members from AePDS)'},
-  aadhaar_lam: {name: 'Aadhaar Laminated', short: 'Aadhaar A4', dot: '#65a30d', sub: 'A4 sheets for lamination: Full, Both and Small, with the green tick + timestamp'},
-  pan:     {name: 'PAN Card',        short: 'PAN',         dot: '#4f46e5', sub: 'e-PAN or Instant e-PAN'},
-  voter:   {name: 'Voter ID',        short: 'Voter ID',    dot: '#ea580c', sub: 'e-EPIC sheet'},
-  dl:      {name: 'Driving Licence', short: 'Driving Licence', dot: '#2563eb', sub: '2-page DL PDF'},
-  rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
-};
-const typeName = k => (TYPE_INFO[k] || {}).name || k;
-const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration']], ['Vehicle', ['dl', 'rc']]];
-const SVG = {
-  down: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>',
-  save: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg>',
-  more: '<svg class="i" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
-  x: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-  flip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>',
-  zoom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
-  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
-  sun: '<path d="M12 3v2M12 19v2M5 5l1.4 1.4M17.6 17.6L19 19M3 12h2M19 12h2M5 19l1.4-1.4M17.6 6.4L19 5"/><circle cx="12" cy="12" r="4"/>',
-  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
-};
-
-/* ---------- helpers ---------- */
-function today() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
-function stamp() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${today()}_${p(d.getHours())}${p(d.getMinutes())}`; }
-function toast(msg, opts = {}) {
-  const t = document.createElement('div'); t.className = 'toast' + (opts.error ? ' err' : '');
-  t.innerHTML = `<span>${esc(msg)}</span>` + (opts.action ? `<button>${esc(opts.action)}</button>` : '');
-  if (opts.action) t.querySelector('button').onclick = () => { opts.onAction(); t.remove(); };
-  $('#toasts').appendChild(t); setTimeout(() => t.remove(), opts.error ? 7000 : 4500);
-}
-async function api(url, body) {
-  const r = await fetch(url, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
-  return data;
-}
-
-/* ---------- plugin host API ---------- */
-const CPS = window.CPS = {
-  api, toast, esc, SVG,
-  rowActions: [], settingsPanels: {},
-  registerRowAction(a) { this.rowActions.push(a); document.body.classList.add('has-plugins'); document.documentElement.style.setProperty('--acts-w', (312 + 100 * this.rowActions.length - 56) + 'px'); render(); },
-  registerSettingsPanel(id, fn) { this.settingsPanels[id] = fn; },
-  jobView(j) { return {pdf: !!j.pdf, job: j.job, ref: j.ref, source: j.source, sides: [...(j.sides || [])], names: {...j.names}, details: {...(j.details || {})}, type: typeOf(j)}; },
-};
-let PLUGINS = [];
-async function loadPlugins() {
-  try { PLUGINS = await api('/api/plugins'); } catch { PLUGINS = []; }
-  for (const p of PLUGINS) if (p.enabled && p.ui) {
-    const sc = document.createElement('script'); sc.src = `/plugins/${p.id}/ui.js`; document.body.appendChild(sc);
-  }
-}
-function renderPlugins() {
-  const box = $('#pluginList');
-  if (!PLUGINS.length) { box.innerHTML = '<span class="hint">No plugins installed.</span>'; return; }
-  box.innerHTML = PLUGINS.map(p => `<div class="plug"><div class="plug-head"><div><b>${esc(p.name)}</b> <span class="hint mono">${esc(p.version)}</span><p>${esc(p.description)}</p>
-      ${p.error ? `<div class="plug-err">Could not load: ${esc(p.error)}</div>` : ''}</div>
-      <label class="sw"><input type="checkbox" data-plugin="${esc(p.id)}" ${p.enabled ? 'checked' : ''} ${p.error ? 'disabled' : ''} aria-label="Enable ${esc(p.name)}"></label></div>
-      <div class="plug-panel" id="pp-${esc(p.id)}"></div></div>`).join('');
-  for (const p of PLUGINS) { const fn = CPS.settingsPanels[p.id]; if (p.enabled && fn) try { fn($('#pp-' + p.id)); } catch (e) { console.error(e); } }
-  box.querySelectorAll('input[data-plugin]').forEach(i => i.onchange = async () => {
-    try { await api('/api/plugins/' + i.dataset.plugin, {enabled: i.checked}); toast(`${i.checked ? 'Enabled' : 'Disabled'} – reloading…`); setTimeout(() => location.reload(), 700); }
-    catch (e) { toast(e.message, {error: true}); }
-  });
-}
-
-/* ---------- names (mirror of card_details.export_name) ---------- */
-const DEFAULT_PATTERN = '{type}_{name}_{id4}_{side}';
-const slug = (v, upper = true) => { const x = String(v || '').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
-  return (upper ? x.toUpperCase() : x).slice(0, 28).replace(/-$/, ''); };
-function applyPattern(pattern, j, side) {
-  const d = j.details || {};
-  const vals = {'{type}': d.type_label || '', '{name}': slug(d.name) || slug(j.source, false), '{id4}': d.id4 || '', '{id}': slug(d.id),
-                '{side}': String(side).toUpperCase(), '{ref}': j.ref || '', '{file}': slug(j.source, false), '{date}': today()};
-  let out = pattern || DEFAULT_PATTERN;
-  for (const [k, v] of Object.entries(vals)) out = out.replaceAll(k, v);
-  out = out.replace(/([_\-. ])\1+/g, '$1').replace(/[_\- ]+([_\-])/g, '$1').replace(/^[_\- .]+|[_\- .]+$/g, '');
-  return out || ('card_' + String(side).toUpperCase());
-}
-const baseName = j => applyPattern((settings.name_pattern || DEFAULT_PATTERN).replace('{side}', ''), j, '');
-const SAMPLE = {source: '01011961', ref: 'JOB-7K4Q-2XM9', details: {type_label: 'PAN', name: 'C REDDAMMA', id4: '017N'}};
-
-/* ---------- theme ---------- */
-const effTheme = () => { const t = document.documentElement.dataset.theme; return (t === 'light' || t === 'dark') ? t : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); };
-function themeIcon() { $('#themeIc').innerHTML = effTheme() === 'dark' ? SVG.sun : SVG.moon; $('#themeBtn').title = effTheme() === 'dark' ? 'Light mode' : 'Dark mode'; }
-$('#themeBtn').onclick = () => { const n = effTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = n; store.set('cps-theme', n); themeIcon(); };
-themeIcon();
-
-/* ---------- type picker ---------- */
-function pickHtml(k, cls) {
-  const on = k === cardType, t = TYPE_INFO[k] || {};
-  return `<button type="button" class="pick ${cls}" role="radio" aria-checked="${on}" data-k="${k}" title="${esc(t.sub || '')}">
-      <span class="ic">${ICON[k] || ''}</span>
-      ${cls === 'auto' ? `<span><b>Auto-detect</b><small>Recommended &ndash; recognises every card type</small></span>` : `<b>${esc(t.short || k)}</b>`}
-      <span class="tick">${SVG.check}</span></button>`;
-}
-function renderTypes() {
-  const keys = Object.keys(settings.card_types || {auto: 1});
-  let h = keys.includes('auto') ? pickHtml('auto', 'auto') : '';
-  for (const [label, ks] of CATS) {
-    const list = ks.filter(k => keys.includes(k)); if (!list.length) continue;
-    h += `<div class="group">${label}</div><div class="tiles">${list.map(k => pickHtml(k, 'tile')).join('')}</div>`;
-  }
-  $('#types').innerHTML = h;
-  $('#chosenType').textContent = typeName(cardType);
-  $('#emptyIcons').innerHTML = ['aadhaar', 'pan', 'voter', 'dl', 'rc'].map(k => `<span title="${esc(typeName(k))}">${ICON[k]}</span>`).join('');
-}
-$('#types').addEventListener('click', e => {
-  const b = e.target.closest('.pick'); if (!b) return;
-  cardType = b.dataset.k; renderTypes(); $('#rcBox').hidden = cardType !== 'ration'; if (cardType === 'ration') $('#rcNo').focus();
-});
-
-/* ---------- settings ---------- */
-async function loadSettings() {
-  settings = await api('/api/settings');
-  $('#destPath').textContent = settings.save_folder; $('#destPath').title = settings.save_folder;
-  $('#autoPill').hidden = !settings.auto_save;
-  renderTypes();
-}
-function setExt(v) { document.querySelectorAll('#sExt button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
-const curExt = () => document.querySelector('#sExt button[aria-pressed="true"]')?.dataset.v || '.jpeg';
-const updatePreview = () => { $('#patPreview').textContent = applyPattern($('#sPattern').value, SAMPLE, 'Front') + curExt(); };
-function openSettings() {
-  $('#sFolder').value = settings.save_folder; $('#sAuto').checked = !!settings.auto_save; $('#sPattern').value = settings.name_pattern;
-  setExt(settings.extension); updatePreview(); renderPlugins(); $('#settings').classList.add('open');
-}
-$('#settingsBtn').onclick = openSettings; $('#changeDest').onclick = openSettings;
-$('#sPattern').oninput = updatePreview;
-document.querySelectorAll('#sExt button').forEach(b => b.onclick = () => { setExt(b.dataset.v); updatePreview(); });
-document.querySelectorAll('.token').forEach(t => t.onclick = () => {
-  const i = $('#sPattern');
-  if (t.dataset.reset) { i.value = DEFAULT_PATTERN; updatePreview(); return; }
-  const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + t.dataset.t + i.value.slice(i.selectionEnd ?? p); i.focus(); updatePreview();
-});
-$('#browseBtn').onclick = async () => {
-  const b = $('#browseBtn'); b.disabled = true; b.textContent = 'Choose in the window…';
-  try { const r = await api('/api/browse', {}); if (r.folder) $('#sFolder').value = r.folder; } catch (e) { toast(e.message, {error: true}); }
-  b.disabled = false; b.textContent = 'Browse…';
-};
-$('#saveSettings').onclick = async () => {
-  const old = settings.name_pattern;
-  try {
-    Object.assign(settings, await api('/api/settings', {save_folder: $('#sFolder').value.trim(), auto_save: $('#sAuto').checked,
-      name_pattern: $('#sPattern').value.trim() || DEFAULT_PATTERN, extension: curExt()}));
-    $('#destPath').textContent = settings.save_folder; $('#destPath').title = settings.save_folder; $('#autoPill').hidden = !settings.auto_save;
-    if (old !== settings.name_pattern) jobs.forEach(j => (j.sides || []).forEach(s => { if (!j.edited[s]) j.names[s] = applyPattern(settings.name_pattern, j, s); }));
-    $('#settings').classList.remove('open'); render(); toast('Settings saved');
-  } catch (e) { toast(e.message, {error: true}); }
-};
-document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-close]')) o.classList.remove('open'); }));
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
-  if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); $('#search').focus(); }
-});
-$('#openFolderBtn').onclick = () => api('/api/open-folder', {}).catch(e => toast(e.message, {error: true}));
-
-/* ---------- upload / queue ---------- */
-const drop = $('#drop');
-$('#fileInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
-['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
-window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
-let queue = Promise.resolve();
-function addFiles(list) {
-  const files = [...list].filter(f => /\.pdf$/i.test(f.name));
-  if (!files.length) { toast('Please choose PDF files', {error: true}); return; }
-  const rc = cardType === 'ration' ? $('#rcNo').value.replace(/\D/g, '') : '';
-  if (cardType === 'ration' && rc.length < 8) { toast('Enter the rice card (RC) number first', {error: true}); $('#rcNo').focus(); return; }
-  if (cardType === 'ration' && files.length > 1) { toast('Ration Card: add one Aadhaar PDF per RC number', {error: true}); return; }
-  if (files.length > 1) toast(`${files.length} PDFs added – processing one after another`);
-  for (const f of files) {
-    const j = {key: Math.random().toString(36).slice(2), source: f.name.replace(/\.pdf$/i, ''), state: 'waiting', names: {}, edited: {}, type: cardType, file: f, side: 'Front', rc};
-    jobs.unshift(j); queue = queue.then(() => processJob(j, f));
-  }
-  if (tab !== 'all' && tab !== cardType) tab = 'all';
-  render();
-}
-async function processJob(j, file, password) {
-  j.state = 'working'; j.error = ''; render();
-  const fd = new FormData(); fd.append('file', file); fd.append('card_type', j.type); if (j.rc) fd.append('rc_no', j.rc);
-  if (password) fd.append('password', password);
-  try {
-    const r = await fetch('/api/process', {method: 'POST', body: fd});
-    const data = await r.json().catch(() => ({}));
-    if (data.needs_password) { j.state = 'locked'; j.error = data.error; render(); return; }
-    if (!r.ok) throw new Error(data.error || `Failed (${r.status})`);
-    Object.assign(j, {job: data.job, sides: data.sides, state: 'done', usedType: data.type, details: data.details || {},
-                      ref: data.ref, hasPhoto: data.has_photo, pdf: !!data.has_pdf, ration: data.ration || null, doneAt: new Date(), file: null});
-    j.sides.forEach(s => j.names[s] = applyPattern(settings.name_pattern, j, s));
-    render();
-    if (settings.auto_save) await saveItems(itemsOf(j), true);
-  } catch (e) { j.state = 'error'; j.error = e.message; render(); }
-}
-
-/* ---------- actions ---------- */
-const itemsOf = j => (j.sides || []).map(side => ({job: j.job, side, name: j.names[side]}));
-function downloadOne(j, side) {
-  const a = document.createElement('a');
-  a.href = `/api/download/${j.job}/${encodeURIComponent(side)}?name=${encodeURIComponent(j.names[side])}`;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-const downloadBoth = j => j.sides.forEach((s, i) => setTimeout(() => downloadOne(j, s), i * 350));
-async function downloadZip(items, zipName) {
-  try {
-    const r = await fetch('/api/zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({items, zip_name: zipName})});
-    if (!r.ok) throw new Error('Could not build the ZIP');
-    const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = zipName + '.zip';
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-  } catch (e) { toast(e.message, {error: true}); }
-}
-async function saveItems(items, auto = false) {
-  if (!items.length) return;
-  try {
-    const r = await api('/api/save', {items});
-    new Set(items.map(i => i.job)).forEach(id => { const jj = jobs.find(x => x.job === id); if (jj) jj.saved = true; });
-    const renamed = r.saved.filter((n, i) => !n.toLowerCase().startsWith(String(items[i].name).toLowerCase() + '.'));
-    render();
-    toast(`${auto ? 'Auto-saved' : 'Saved'} ${r.saved.length} file${r.saved.length > 1 ? 's' : ''}` + (renamed.length ? ` (${renamed.length} renamed to avoid overwriting)` : ''),
-          {action: 'Open folder', onAction: () => api('/api/open-folder', {})});
-  } catch (e) { toast(e.message, {error: true}); }
-}
-const doneShown = () => visible().filter(j => j.state === 'done');
-$('#zipAll').onclick = () => { const l = doneShown(); downloadZip(l.flatMap(itemsOf), `CARD-EXPORTS_${stamp()}_${l.length}-cards`); };
-$('#saveAll').onclick = () => saveItems(doneShown().flatMap(itemsOf));
-$('#clearAll').onclick = () => { jobs = jobs.filter(j => j.state === 'working' || j.state === 'waiting'); render(); };
-$('#stAttnBtn').onclick = () => { tab = 'attention'; render(); };
-
-/* ---------- filtering ---------- */
-const typeOf = j => j.usedType || (j.type !== 'auto' ? j.type : null);
-const needsAction = j => j.state === 'error' || j.state === 'locked';
-function matches(j) {
-  if (tab === 'attention' && !needsAction(j)) return false;
-  if (tab !== 'all' && tab !== 'attention' && typeOf(j) !== tab) return false;
-  if (!query) return true;
-  const d = j.details || {};
-  const hay = [d.name, d.id, d.type_label, typeOf(j) && typeName(typeOf(j)), j.source, j.ref, ...Object.values(j.names || {})].filter(Boolean).join(' ').toLowerCase();
-  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
-}
-const visible = () => jobs.filter(matches);
-$('#search').addEventListener('input', e => { query = e.target.value.trim(); render(); });
-$('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; render(); } });
-document.querySelectorAll('.seg[aria-label="View"] button').forEach(b => b.onclick = () => { view = b.dataset.view; store.set('cps-view2', view); render(); });
-
-/* ---------- render pieces ---------- */
-const img = (j, s) => `/api/image/${j.job}/${encodeURIComponent(s)}?v=${j.v || 0}`;
-function initials(n) { return String(n || '?').split(/\s+/).filter(w => /[A-Za-z]/.test(w[0] || '')).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?'; }
-function avatarHtml(j) {
-  const t = typeOf(j);
-  if (j.state === 'done' && t === 'rc') return `<span class="ava sq" title="Vehicle RC">${ICON.rc}</span>`;
-  const badge = t && ICON[t] ? `<span class="tb">${ICON[t]}</span>` : '';
-  if (j.state === 'done' && j.hasPhoto) return `<span class="ava"><img src="/api/photo/${j.job}" alt="" loading="lazy">${badge}</span>`;
-  if (j.state === 'working') return `<span class="ava"><span class="spin"></span></span>`;
-  return `<span class="ava">${esc(initials(j.details?.name || j.source))}${badge}</span>`;
-}
-function whoHtml(j) {
-  const n = j.details?.name;
-  const title = n ? `<b title="${esc(n)}">${esc(n)}</b>` : (j.state === 'done' ? `<b class="unk" title="This PDF has no readable name (e.g. a scanned Voter ID)">Name not in PDF</b>` : `<b>${esc(j.source)}.pdf</b>`);
-  let sub = `${esc(j.source)}.pdf` + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
-  if (j.state === 'waiting') sub = 'Waiting in queue';
-  if (j.state === 'working') sub = 'Processing…';
-  return `<span class="who">${title}<small title="${esc(j.source)}.pdf">${sub}</small>${j.ref ? `<small class="refline mono">${esc(j.ref)}</small>` : ''}</span>`;
-}
-const chipHtml = t => t && TYPE_INFO[t] ? `<span class="chip"><i style="background:${TYPE_INFO[t].dot}"></i>${esc(TYPE_INFO[t].name)}</span>` : '';
-const docHtml = j => j.details?.id4 ? `<span class="docno"><span class="l">${esc(j.details.id_label)}</span>•••• ${esc(j.details.id4)}</span>` : `<span class="docno" style="color:var(--faint);font-family:var(--font);font-size:12.5px" title="This PDF has no readable document number">No number in PDF</span>`;
-const refHtml = j => j.ref ? `<button class="ref" data-act="copyref" data-key="${j.key}" title="Job reference – click to copy">${esc(j.ref)}${SVG.copy}</button>` : '';
-function whenText(j) {
-  if (!j.doneAt) return '';
-  const d = j.doneAt, t = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
-  return d.toDateString() === new Date().toDateString() ? `Today, ${t}` : d.toLocaleDateString([], {day: 'numeric', month: 'short'}) + ', ' + t;
-}
-const isSheet = j => typeOf(j) === 'aadhaar_lam';
-function curSide(j) { return (j.sides || []).includes(j.side) ? j.side : (j.sides || ['Front'])[0]; }
-function flipHtml(j) {
-  if (isSheet(j)) {                       // A4 sheets: show the current one, step through the others
-    const s = curSide(j), i = j.sides.indexOf(s), next = j.sides[(i + 1) % j.sides.length];
-    return `<div class="flip sheet" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
-      <span class="side-tag">${esc(s)}</span>
-      <div class="in"><div class="face f"><img src="${img(j, s)}" alt="${esc(s)}" loading="lazy"></div></div>
-      <div class="tools"><button class="ft" data-act="flip" data-key="${j.key}" title="Show ${esc(next)}">${SVG.flip}${esc(next)}</button>
-        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
-  }
-  const back = j.side === 'Back', hasBack = (j.sides || []).includes('Back');
-  return `<div class="flip ${back ? 'back' : ''}" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
-      <span class="side-tag">${back ? 'Back' : 'Front'}</span>
-      <div class="in"><div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>
-      ${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}</div>
-      <div class="tools">${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}">${SVG.flip}${back ? 'Front' : 'Back'}</button>` : ''}
-        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
-}
-function actsHtml(j, grid) {
-  if (j.state === 'done') return `
-    <button class="btn ${grid ? '' : 'lg'}" data-act="save" data-key="${j.key}" title="Save front + back to the save folder">${SVG.save}<span class="lbl-s">Save</span></button>
-    ${CPS.rowActions.filter(a => !a.when || a.when(CPS.jobView(j))).map(a => `<button class="btn ${grid ? '' : 'lg'}" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}<span class="lbl-s">${esc(a.label)}</span></button>`).join('')}
-    ${j.pdf ? `<button class="btn primary ${grid ? '' : 'lg'}" data-act="pdf" data-key="${j.key}" title="Download the print-quality PDF (all sheets)">${SVG.down}PDF</button>`
-            : `<button class="btn primary ${grid ? '' : 'lg'}" data-act="both" data-key="${j.key}" title="Download front + back JPEGs">${SVG.down}Download</button>`}
-    <button class="btn quiet icon ${grid ? '' : 'lg'}" data-act="more" data-key="${j.key}" aria-expanded="${!!j.open}" title="Rename files, single side, remove">${SVG.more}</button>`;
-  if (needsAction(j)) return `<button class="btn quiet icon" data-act="remove" data-key="${j.key}" title="Remove">${SVG.x}</button>`;
-  return `<span class="status"><span class="spin"></span>${j.state === 'working' ? 'Processing' : 'Queued'}</span>`;
-}
-function numberRcRows(box) {
-  let n = 2;
-  box.querySelectorAll('.rc-row').forEach(r => { if (r.querySelector('.rc-mv')) r.querySelector('.rc-no').textContent = String(n++).padStart(2, '0'); });
-}
-function extraHtml(j) {
-  if (j.state === 'done' && j.open && j.ration) return `<div class="more rc-edit">
-      <div class="field" style="grid-column:1/-1"><label>Members as printed &ndash; fix Telugu spelling, set the birth date if known, and use &uarr; &darr; to match the order on an old card. Then <b>Update card</b>.</label></div>
-      <div class="rc-rows" style="grid-column:1/-1">${j.ration.members.map((m, i) => `<div class="rc-row" data-i="${i}">
-        <span class="rc-no mono">${m.head ? 'Head' : String(i + 1).padStart(2, '0')}</span>
-        <div class="rc-who"><small>${esc(m.name_en || 'Head of family')}${m.relation ? ' · ' + esc(m.relation) : ''}</small>
-          <input class="text" data-rcname="${i}" value="${esc(m.name)}" spellcheck="false" aria-label="Telugu name"></div>
-        ${m.head ? '<span></span><span></span>' : `<input class="text mono rc-dob" data-rcdob="${i}" value="${esc((m.dob_age || '').split('/')[0])}" placeholder="YYYY-MM-DD" aria-label="Birth date">
-        <span class="rc-mv"><button class="btn quiet icon" data-act="rcup" data-key="${j.key}" title="Move up">&uarr;</button><button class="btn quiet icon" data-act="rcdown" data-key="${j.key}" title="Move down">&darr;</button></span>`}
-      </div>`).join('')}</div>
-      <div class="field" style="grid-column:1/-1"><label>Permanent address</label>
-        <input class="text" data-rcaddr="1" data-key="${j.key}" value="${esc(j.ration.permanent_address)}" spellcheck="false"></div>
-      <div class="acts" style="grid-column:1/-1;justify-content:flex-start">
-        <button class="btn primary" data-act="rcsave" data-key="${j.key}">Update card</button>
-        ${j.sides.map(s => `<button class="btn quiet" data-act="dl" data-key="${j.key}" data-side="${esc(s)}">${SVG.down}${esc(s)}</button>`).join('')}
-        <button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
-  if (j.state === 'done' && j.open) return `<div class="more">${j.sides.map(s => `
-      <div class="field"><label>${esc(s)} file name</label><div class="name"><input value="${esc(j.names[s])}" data-key="${j.key}" data-side="${esc(s)}" spellcheck="false" aria-label="${esc(s)} file name"><span>${esc(settings.extension || '.jpeg')}</span>
-        <button class="btn quiet icon" data-act="dl" data-key="${j.key}" data-side="${esc(s)}" title="Download ${esc(s)} only">${SVG.down}</button></div></div>`).join('')}
-      <div class="acts"><button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
-  if (j.state === 'locked') return `<div class="note"><form class="lock" data-key="${j.key}"><strong style="color:var(--err)">${esc(j.error)}</strong>
-      <input type="password" placeholder="PDF password" autocomplete="off" data-pw="${j.key}"><button class="btn primary" type="submit">Unlock</button>
-      <span class="hint">e-Aadhaar: first 4 letters of the name in capitals + birth year (SUBR1992) &ensp; e-PAN: date of birth DDMMYYYY</span></form></div>`;
-  if (j.state === 'error') return `<div class="note err">${esc(j.error)}</div>`;
-  return '';
-}
-function rowHtml(j) {
-  const done = j.state === 'done';
-  return `<div class="row" data-k="${j.key}">
-    <div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
-    <div class="c-type">${done ? chipHtml(typeOf(j)) : (j.state === 'working' || j.state === 'waiting' ? '<div class="skel line"></div>' : chipHtml(typeOf(j)))}</div>
-    <div class="c-doc">${done ? docHtml(j) : ''}</div>
-    <div class="c-ref">${refHtml(j)}</div>
-    <div class="c-prev">${done ? flipHtml(j) : (needsAction(j) ? '' : '<div class="skel thumb"></div>')}</div>
-    <div class="acts">${actsHtml(j)}</div>
-    ${extraHtml(j)}</div>`;
-}
-function cardHtml(j) {
-  const done = j.state === 'done';
-  return `<article class="gcard">
-    ${done ? flipHtml(j) : (needsAction(j) ? '' : '<div class="skel thumb"></div>')}
-    <div class="gbody"><div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
-      ${done ? `<div class="gmeta">${chipHtml(typeOf(j))}${docHtml(j)}</div><div class="gref">${refHtml(j)}</div>` : ''}
-      <div class="gacts acts">${actsHtml(j, true)}</div></div>
-    ${extraHtml(j)}</article>`;
-}
-
-function renderTabs() {
-  const counts = {}; jobs.forEach(j => { const t = typeOf(j); if (t) counts[t] = (counts[t] || 0) + 1; });
-  const attn = jobs.filter(needsAction).length;
-  const list = [['all', 'All', jobs.length], ...Object.keys(TYPE_INFO).filter(k => counts[k]).map(k => [k, TYPE_INFO[k].name, counts[k]])];
-  if (attn) list.push(['attention', 'Needs action', attn]);
-  if (!list.some(t => t[0] === tab)) tab = 'all';
-  $('#tabs').innerHTML = list.map(([k, n, c]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab === k}">${esc(n)}<span class="c">${c}</span></button>`).join('');
-  $('#tabs').hidden = !jobs.length;
-}
-function render() {
-  const done = jobs.filter(j => j.state === 'done').length, pending = jobs.filter(j => j.state === 'working' || j.state === 'waiting').length;
-  $('#stReady').textContent = done; $('#stSaved').textContent = jobs.filter(j => j.saved).length; $('#stAttn').textContent = jobs.filter(needsAction).length;
-  $('#count').textContent = jobs.length ? `${done} ready${pending ? `, ${pending} in progress` : ''}` : '';
-  document.querySelectorAll('.seg[aria-label="View"] button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === view));
-  renderTabs();
-  const shown = visible();
-  $('#zipAll').disabled = $('#saveAll').disabled = !shown.some(j => j.state === 'done');
-  $('#clearAll').disabled = !jobs.some(j => j.state !== 'working' && j.state !== 'waiting');
-  $('#empty').hidden = jobs.length !== 0;
-
-  const a = document.activeElement, fk = a?.dataset?.key, fs = a?.dataset?.side, caret = a?.selectionStart;
-  const box = $('#results');
-  if (!jobs.length) box.innerHTML = '';
-  else if (!shown.length) box.innerHTML = `<div class="empty"><h3>Nothing matches</h3><p>No exports match the current filter${query ? ` and “${esc(query)}”` : ''}.</p></div>`;
-  else if (view === 'rows') box.innerHTML = `<div class="table" role="table"><div class="cols" role="row"><span>Holder</span><span class="c-type">Card</span><span class="c-doc">Document no.</span><span class="c-ref">Job ref</span><span class="c-prev">Preview</span><span style="text-align:right">Actions</span></div>${shown.map(rowHtml).join('')}</div>`;
-  else box.innerHTML = `<div class="grid">${shown.map(cardHtml).join('')}</div>`;
-  if (fk) { const el = box.querySelector(`input[data-key="${fk}"][data-side="${fs}"]`); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch {} } }
-  else { const pw = box.querySelector('input[data-pw]'); if (pw && !pw.value && document.activeElement === document.body) pw.focus(); }
-}
-
-/* ---------- events ---------- */
-const byKey = k => jobs.find(j => j.key === k);
-let lbJob = null;
-function openLightbox(j, side) {
-  lbJob = j;
-  $('#lbSides').innerHTML = j.sides.map(s => `<button data-s="${esc(s)}">${esc(s)}</button>`).join('');
-  document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s)); $('#lbTitle').textContent = `${j.details?.name || j.source}${j.ref ? ' · ' + j.ref : ''}`;
-  showLb(side || curSide(j)); $('#lightbox').classList.add('open');
-}
-function showLb(s) { $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
-  document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); }); }
-document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
-$('#lbDl').onclick = () => downloadOne(lbJob, $('#lbImg').dataset.side);
-
-$('#results').addEventListener('submit', e => {
-  const f = e.target.closest('form.lock'); if (!f) return; e.preventDefault();
-  const j = byKey(f.dataset.key), pw = f.querySelector('input').value; if (pw) queue = queue.then(() => processJob(j, j.file, pw));
-});
-$('#results').addEventListener('input', e => {
-  const i = e.target.closest('input[data-side]'); if (!i) return;
-  const j = byKey(i.dataset.key); j.names[i.dataset.side] = i.value; j.edited[i.dataset.side] = true;
-});
-$('#results').addEventListener('click', async e => {
-  const b = e.target.closest('[data-act]'); if (!b) return;
-  const j = byKey(b.dataset.key); if (!j) return;
-  const act = b.dataset.act;
-  if (act !== 'zoom') e.stopPropagation();
-  if (act === 'flip') {
-    if (isSheet(j)) { const i = j.sides.indexOf(curSide(j)); j.side = j.sides[(i + 1) % j.sides.length]; }
-    else j.side = j.side === 'Back' ? 'Front' : 'Back';
-    render();
-  }
-  else if (act === 'zoom') openLightbox(j);
-  else if (act === 'both') downloadBoth(j);
-  else if (act === 'pdf') { const a = document.createElement('a'); a.href = `/api/pdf/${j.job}?name=${encodeURIComponent(baseName(j))}`; document.body.appendChild(a); a.click(); a.remove(); }
-  else if (act === 'save') saveItems(itemsOf(j));
-  else if (act === 'dl') downloadOne(j, b.dataset.side);
-  else if (act === 'zip') downloadZip(itemsOf(j), baseName(j));
-  else if (act === 'more') { j.open = !j.open; render(); }
-  else if (act === 'remove') { jobs = jobs.filter(x => x !== j); render(); }
-  else if (act === 'plugin') { const pa = CPS.rowActions.find(a => a.id === b.dataset.pa); if (pa) try { pa.run(CPS.jobView(j)); } catch (err) { toast(err.message, {error: true}); } }
-  else if (act === 'rcup' || act === 'rcdown') {
-    const row = b.closest('.rc-row'), sib = act === 'rcup' ? row.previousElementSibling : row.nextElementSibling;
-    if (!sib || sib.querySelector('.rc-mv') === null) return;           // head of family stays first
-    act === 'rcup' ? sib.before(row) : sib.after(row);
-    numberRcRows(row.parentElement);
-  }
-  else if (act === 'rcsave') {
-    const box = b.closest('.rc-edit');
-    const rows = [...box.querySelectorAll('.rc-row')].map(r => ({i: +r.dataset.i,
-      name: r.querySelector('[data-rcname]').value, dob: (r.querySelector('[data-rcdob]') || {}).value || ''}));
-    const addr = box.querySelector('input[data-rcaddr]').value;
-    const bad = rows.find(r => r.dob && !/^\d{4}-\d{2}-\d{2}$/.test(r.dob.trim()));
-    if (bad) { toast('Birth date must look like 2010-04-18', {error: true}); return; }
-    b.disabled = true; b.textContent = 'Updating…';
-    try {
-      await api(`/api/ration/${j.job}`, {members: rows, permanent_address: addr, head_name: rows[0] ? rows[0].name : ''});
-      j.ration.members = rows.map(r => { const m = {...j.ration.members[r.i], name: r.name};
-        if (r.dob.trim()) m.dob_age = r.dob.trim() + '/' + (m.dob_age || '/').split('/').slice(1).join('/'); return m; });
-      j.ration.permanent_address = addr;
-      j.v = (j.v || 0) + 1; j.saved = false; toast('Card updated'); render();
-    } catch (err) { toast(err.message, {error: true}); b.disabled = false; b.textContent = 'Update card'; }
-  }
-  else if (act === 'copyref') { try { await navigator.clipboard.writeText(j.ref); toast(`Copied ${j.ref}`); } catch { toast(j.ref); } }
-});
-
-render();
-loadSettings().then(render).then(loadPlugins).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
-</script>
-</body>
-</html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card Print Studio</title>
+<script>
+  try { const t = localStorage.getItem('cps-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Card Print Studio - app shell.
+   Neutral ink system, one brand accent (print orange) used for focus, active
+   states and the brand mark only. 1px hairlines instead of heavy shadows,
+   8px controls / 12px surfaces, General Sans + Geist Mono for numbers. */
+:root {
+  color-scheme: light;
+  --bg: #f7f7f5; --surface: #ffffff; --surface-2: #f3f3f1; --surface-3: #ebebe8; --hover: #f5f5f3;
+  --line: #e7e6e2; --line-2: #d8d7d2;
+  --text: #17171a; --text-2: #3f3f46; --muted: #6e6e76; --faint: #a1a1a8;
+  --primary: #17171a; --on-primary: #ffffff;
+  --accent: #ea6a1f; --accent-soft: #fdf0e7; --ring: rgba(234, 106, 31, .35);
+  --ok: #15803d; --err: #c2410c; --err-soft: #fff1ea; --warn: #a16207;
+  --shadow-1: 0 1px 2px rgba(23, 23, 26, .05);
+  --shadow-2: 0 1px 2px rgba(23, 23, 26, .04), 0 6px 20px -8px rgba(23, 23, 26, .14);
+  --shadow-3: 0 12px 40px -12px rgba(23, 23, 26, .35);
+  --font: "General Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, Consolas, monospace;
+  --r-ctl: 8px; --r-sur: 12px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #0c0c0d; --surface: #141416; --surface-2: #1a1a1d; --surface-3: #232327; --hover: #1c1c20;
+  --line: #26262b; --line-2: #34343a;
+  --text: #ededee; --text-2: #d1d1d6; --muted: #9c9ca5; --faint: #6c6c74;
+  --primary: #ededee; --on-primary: #111113;
+  --accent: #f4812f; --accent-soft: #2b1a0f; --ring: rgba(244, 129, 47, .4);
+  --ok: #4ade80; --err: #fb923c; --err-soft: #2a1710; --warn: #facc15;
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, .3); --shadow-2: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6); --shadow-3: 0 16px 48px -12px rgba(0,0,0,.8);
+} }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0c0d; --surface: #141416; --surface-2: #1a1a1d; --surface-3: #232327; --hover: #1c1c20;
+  --line: #26262b; --line-2: #34343a;
+  --text: #ededee; --text-2: #d1d1d6; --muted: #9c9ca5; --faint: #6c6c74;
+  --primary: #ededee; --on-primary: #111113;
+  --accent: #f4812f; --accent-soft: #2b1a0f; --ring: rgba(244, 129, 47, .4);
+  --ok: #4ade80; --err: #fb923c; --err-soft: #2a1710; --warn: #facc15;
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, .3); --shadow-2: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -10px rgba(0,0,0,.6); --shadow-3: 0 16px 48px -12px rgba(0,0,0,.8);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--font); letter-spacing: -.003em;
+       -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-feature-settings: "zero"; }
+[hidden] { display: none !important; }
+svg.i { width: 16px; height: 16px; flex: none; }
+
+/* ---------- buttons ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 14px;
+       border-radius: var(--r-ctl); border: 1px solid var(--line-2); background: var(--surface); color: var(--text);
+       font-weight: 500; font-size: 13.5px; white-space: nowrap; box-shadow: var(--shadow-1);
+       transition: background .12s, border-color .12s, box-shadow .12s, transform .06s; }
+.btn:hover { background: var(--hover); border-color: var(--line-2); }
+.btn:active { transform: translateY(.5px); }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.primary:hover { opacity: .9; background: var(--primary); }
+.btn.quiet { border-color: transparent; background: transparent; box-shadow: none; color: var(--text-2); }
+.btn.quiet:hover { background: var(--surface-3); }
+.btn.icon { width: 36px; padding: 0; }
+.btn.lg { height: 40px; padding: 0 16px; font-size: 14px; }
+.btn.lg.icon { width: 40px; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+.kbd { font: 11px var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; }
+
+/* ---------- shell ---------- */
+.app { height: 100vh; display: grid; grid-template-rows: 56px minmax(0, 1fr); }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -.015em; min-width: 0; }
+.mark { width: 28px; height: 28px; border-radius: 8px; background: var(--primary); display: grid; place-items: center; position: relative; flex: none; }
+.mark::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 3px; background: var(--accent); border: 2px solid var(--surface); }
+.mark svg { width: 16px; height: 16px; color: var(--on-primary); }
+.plan { font-size: 11.5px; font-weight: 500; color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; padding: 0 6px; line-height: 18px; }
+.crumb { color: var(--faint); font-weight: 400; }
+.crumb b { color: var(--text-2); font-weight: 500; }
+.topbar .grow { flex: 1; }
+.search { display: flex; align-items: center; gap: 8px; height: 36px; width: min(420px, 38vw); padding: 0 10px;
+          border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface-2); color: var(--muted); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13.5px; }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); background: var(--surface); }
+
+.body { display: grid; grid-template-columns: 344px minmax(0, 1fr); min-height: 0; }
+.side { border-right: 1px solid var(--line); background: var(--surface); overflow: auto; display: flex; flex-direction: column; }
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---------- side: new job ---------- */
+.sec { padding: 18px 18px 6px; }
+.sec h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.sec .lead { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+.step { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.step .n { width: 18px; height: 18px; border-radius: 5px; background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: 11px; font-weight: 600; }
+.auto { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
+        background: var(--surface); text-align: left; position: relative; }
+.auto .ic { width: 36px; height: 36px; border-radius: 9px; overflow: hidden; flex: none; }
+.auto .ic svg { width: 36px; height: 36px; display: block; }
+.auto b { display: block; font-size: 13.5px; font-weight: 600; }
+.auto small { display: block; font-size: 12px; color: var(--muted); }
+.group { margin: 12px 0 6px; font-size: 12px; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile { display: grid; justify-items: center; gap: 7px; padding: 10px 4px 9px; border-radius: 10px; border: 1px solid var(--line);
+        background: var(--surface); position: relative; }
+.tile .ic { width: 48px; height: 48px; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-1); }
+.tile .ic svg { width: 48px; height: 48px; display: block; }
+.tile b { font-size: 12.5px; font-weight: 600; line-height: 1.2; text-align: center; }
+.tile:hover, .auto:hover { border-color: var(--line-2); background: var(--hover); }
+.pick[aria-checked="true"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); background: var(--surface); }
+.pick .tick { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--text); color: var(--surface);
+              display: none; place-items: center; }
+.auto .tick { top: 50%; right: 10px; transform: translateY(-50%); }
+.pick[aria-checked="true"] .tick { display: grid; }
+.tick svg { width: 10px; height: 10px; }
+
+.drop { display: grid; justify-items: center; gap: 6px; padding: 20px 14px; border: 1.5px dashed var(--line-2); border-radius: 12px;
+        background: var(--surface-2); text-align: center; cursor: pointer; transition: border-color .12s, background .12s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .up { width: 36px; height: 36px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; box-shadow: var(--shadow-1); }
+.drop b { font-weight: 600; font-size: 14px; }
+.drop span { font-size: 12.5px; color: var(--muted); }
+.drop .as { color: var(--text-2); font-weight: 500; }
+.dest { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 12.5px; }
+.dest .p { flex: 1; min-width: 0; font: 12px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.dest .lbl { color: var(--muted); }
+.auto-on { font-size: 11.5px; color: var(--ok); font-weight: 500; }
+.session { margin-top: auto; padding: 14px 18px 18px; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { padding: 8px 10px; border-radius: 10px; background: var(--surface-2); }
+.stat b { display: block; font: 600 18px var(--font); letter-spacing: -.02em; }
+.stat span { font-size: 11.5px; color: var(--muted); }
+.stat.attn b { color: var(--err); }
+button.stat { border: 0; text-align: left; }
+
+/* ---------- main: toolbar ---------- */
+.mhead { display: flex; align-items: center; gap: 12px; padding: 16px 20px 0; flex-wrap: wrap; }
+.mhead h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+.mhead .count { color: var(--muted); font-size: 13px; }
+.mhead .grow { flex: 1; }
+.tabs { display: flex; gap: 2px; padding: 12px 20px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 8px 10px 10px; font-size: 13px; color: var(--muted); font-weight: 500; position: relative; white-space: nowrap;
+       display: inline-flex; gap: 6px; align-items: center; border-radius: 6px 6px 0 0; }
+.tab:hover { color: var(--text); }
+.tab .c { font: 11.5px var(--mono); color: var(--faint); }
+.tab[aria-selected="true"] { color: var(--text); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--text); border-radius: 2px; }
+.seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--surface-3); }
+.seg button { border: 0; background: transparent; height: 30px; padding: 0 10px; border-radius: 7px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.scroller { flex: 1; min-height: 0; overflow: auto; padding: 0 20px 24px; }
+
+/* ---------- list (table) ---------- */
+.table { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r-sur); background: var(--surface); overflow: hidden; box-shadow: var(--shadow-1); }
+.cols, .row { display: grid; grid-template-columns: minmax(150px, 2fr) minmax(0, .9fr) minmax(150px, 1fr) minmax(142px, 1.1fr) 112px var(--acts-w, 312px); align-items: center; gap: 14px; padding: 0 14px; }
+.cols { height: 36px; font-size: 12px; color: var(--muted); font-weight: 500; background: var(--surface-2); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+.row { min-height: 72px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row:hover { background: var(--hover); }
+.holder { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ava { width: 40px; height: 40px; border-radius: 50%; flex: none; position: relative; background: var(--surface-3); display: grid; place-items: center;
+       font-weight: 600; font-size: 14px; color: var(--text-2); }
+.ava img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.ava .tb { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 2px var(--surface); }
+.ava .tb svg { width: 18px; height: 18px; display: block; }
+.ava.sq { border-radius: 10px; overflow: hidden; }
+.ava.sq svg { width: 40px; height: 40px; }
+.who { min-width: 0; }
+.who b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who b.unk { color: var(--muted); font-weight: 500; }
+.who small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip { max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--text-2); background: var(--surface); white-space: nowrap; }
+.chip i { width: 7px; height: 7px; border-radius: 2px; }
+.docno { font: 13px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.docno .l { font: 11.5px var(--font); color: var(--muted); margin-right: 6px; }
+.ref { white-space: nowrap; max-width: 100%; overflow: hidden; display: inline-flex; align-items: center; gap: 4px; font: 12.5px var(--mono); color: var(--text-2); border: 0; background: none; padding: 2px 4px; margin-left: -4px; border-radius: 5px; }
+.ref:hover { background: var(--surface-3); }
+.ref svg { width: 12px; height: 12px; color: var(--faint); }
+.when { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.acts { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.saved-tag { font-size: 11.5px; color: var(--ok); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+
+/* thumbnail with flip */
+.flip { position: relative; aspect-ratio: 1016 / 638; perspective: 900px; border-radius: 6px; cursor: zoom-in; }
+.flip .in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .45s cubic-bezier(.2, .7, .2, 1); }
+.flip.back .in { transform: rotateY(180deg); }
+.flip .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: inherit; overflow: hidden; border: 1px solid var(--line); background: var(--surface-3); }
+.flip .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.flip .face.b { transform: rotateY(180deg); }
+.flip .tools { position: absolute; inset: auto 6px 6px auto; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2; }
+.flip:hover .tools, .flip:focus-within .tools { opacity: 1; }
+@media (hover: none) { .flip .tools { opacity: 1; } }
+.ft { height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: rgba(17, 17, 19, .78); color: #fff; font-size: 11.5px; font-weight: 500;
+      display: inline-flex; align-items: center; gap: 5px; backdrop-filter: blur(6px); }
+.ft:hover { background: rgba(17, 17, 19, .92); }
+.ft svg { width: 13px; height: 13px; }
+.side-tag { position: absolute; left: 6px; top: 6px; z-index: 2; height: 18px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 600;
+            background: rgba(17, 17, 19, .7); color: #fff; display: inline-flex; align-items: center; pointer-events: none; }
+.row .flip { width: 112px; }
+.flip.sheet { aspect-ratio: auto; height: 100%; }
+.flip.sheet .face { background: #fff; }
+.flip.sheet .face img { object-fit: contain; }
+.row .flip.sheet { width: 112px; height: 70px; }
+.gcard .flip.sheet { height: auto; aspect-ratio: 1016 / 638; }
+.row .flip .tools { inset: auto 4px 4px auto; }
+.row .flip .ft { height: 22px; padding: 0 6px; font-size: 11px; }
+.row .flip .ft.zoom { display: none; }
+.skel { background: linear-gradient(90deg, var(--surface-3), var(--surface-2), var(--surface-3)); background-size: 200% 100%; animation: sh 1.2s linear infinite; border-radius: 6px; }
+@keyframes sh { to { background-position: -200% 0; } }
+.row .skel.thumb { width: 112px; aspect-ratio: 1016 / 638; }
+.skel.line { height: 10px; width: 70%; } .skel.line.s { width: 40%; margin-top: 6px; }
+
+/* expanded row: rename & per-side */
+.more { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px 14px; padding: 2px 0 14px 52px; align-items: end; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 12px; color: var(--muted); }
+.name { display: flex; align-items: center; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); overflow: hidden; }
+.name input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 0 10px; font: 13px var(--mono); }
+.name span { color: var(--faint); font: 12px var(--mono); padding: 0 6px 0 2px; }
+.name .btn { height: 34px; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+.name:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.note { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 0 0 14px 52px; }
+.note.err { color: var(--err); }
+.lock { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lock input { height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 0 10px; background: var(--surface); min-width: 200px; }
+.lock input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.hint { color: var(--muted); font-size: 12px; }
+
+/* ---------- grid ---------- */
+.grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: stretch; }
+.gcard { border: 1px solid var(--line); border-radius: var(--r-sur); background: var(--surface); box-shadow: var(--shadow-1); overflow: hidden;
+         transition: box-shadow .15s, border-color .15s; }
+.gcard:hover { box-shadow: var(--shadow-2); border-color: var(--line-2); }
+.gcard .flip { margin: 10px 10px 0; border-radius: 8px; }
+.gcard .skel.thumb { margin: 10px 10px 0; aspect-ratio: 1016 / 638; }
+.gcard { display: flex; flex-direction: column; }
+.gbody { padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.gmeta { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; min-height: 24px; font-size: 12px; color: var(--muted); }
+.gmeta > * { flex: none; } .gmeta .docno { flex: 0 1 auto; min-width: 0; }
+.gref { min-height: 22px; display: flex; align-items: center; }
+.gacts { display: flex; gap: 6px; }
+.acts .btn.primary { min-width: 122px; }
+.gacts { flex-wrap: nowrap; margin-top: auto; } .gacts .btn.primary { flex: 1; min-width: 0; }
+.gacts .btn[data-act="save"] { width: 36px; padding: 0; flex: none; } .gacts .btn[data-act="save"] .lbl-s { display: none; }
+.who small .ok { color: var(--ok); font-weight: 500; }
+.gcard .more { grid-template-columns: 1fr; padding: 0 12px 12px; }
+.rc-edit { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.rc-edit .text { font-size: 15px; }
+.rc-rows { display: grid; gap: 6px; }
+.rc-row { display: grid; grid-template-columns: 40px 1fr 130px auto; gap: 8px; align-items: end; }
+.rc-row .rc-no { align-self: center; font-size: 13px; color: var(--muted, #888); }
+.rc-who small { display: block; font-size: 12px; color: var(--muted, #888); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-mv { display: flex; gap: 4px; }
+@media (max-width: 560px) { .rc-row { grid-template-columns: 34px 1fr; } .rc-row .rc-dob, .rc-row .rc-mv { grid-column: 2; } }
+.gcard .note { padding: 0 12px 12px; }
+
+/* ---------- empty ---------- */
+.empty { margin: 48px auto; max-width: 440px; text-align: center; display: grid; justify-items: center; gap: 10px; }
+.empty .icons { display: flex; gap: 8px; margin-bottom: 6px; }
+.empty .icons span { width: 40px; height: 40px; border-radius: 11px; overflow: hidden; box-shadow: var(--shadow-1); }
+.empty .icons svg { width: 40px; height: 40px; display: block; }
+.empty h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.empty p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+/* ---------- overlays ---------- */
+.overlay { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; padding: 20px; background: rgba(10, 10, 12, .55); backdrop-filter: blur(3px); }
+.overlay.open { display: grid; }
+.dialog { width: min(560px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-3); }
+.dhead { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.dhead h3 { margin: 0; flex: 1; font-size: 15px; font-weight: 600; }
+.dbody { padding: 16px; display: grid; gap: 18px; }
+.dfoot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+.dbody .t { font-weight: 600; font-size: 13.5px; margin-bottom: 4px; display: block; }
+.text { width: 100%; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); padding: 0 10px; background: var(--surface); outline: 0; }
+.text:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.text.mono { font: 13px var(--mono); }
+.rowf { display: flex; gap: 8px; } .rowf .text { flex: 1; min-width: 0; }
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.token { font: 12px var(--mono); padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); }
+.token:hover { border-color: var(--text); }
+.token.reset { font-family: var(--font); color: var(--accent); }
+.sw { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sw input { appearance: none; width: 38px; height: 22px; border-radius: 99px; background: var(--line-2); position: relative; flex: none; cursor: pointer; transition: background .15s; }
+.sw input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.sw input:checked { background: var(--text); } .sw input:checked::after { left: 19px; }
+.lightbox .dialog { width: min(1040px, 100%); background: var(--surface); padding: 0; }
+.lb-img { padding: 14px; background: var(--surface-2); }
+.lb-img img { max-height: calc(100vh - 140px); object-fit: contain; margin: 0 auto; width: 100%; display: block; border-radius: 8px; box-shadow: var(--shadow-2); }
+.toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 60; }
+.toast { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--text); color: var(--surface);
+         font-size: 13.5px; box-shadow: var(--shadow-3); animation: up .18s ease; max-width: 420px; }
+.toast.err { background: var(--err); color: #fff; }
+.toast button { border: 0; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent); padding: 0; }
+@keyframes up { from { transform: translateY(6px); opacity: 0; } }
+.spin { width: 14px; height: 14px; border: 2px solid var(--line-2); border-top-color: var(--text); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+
+/* ---------- plugins ---------- */
+a.btn { text-decoration: none; }
+.has-plugins .row .acts .btn[data-act="save"] { width: 40px; padding: 0; }
+.has-plugins .row .acts .btn[data-act="save"] .lbl-s { display: none; }
+.plugins { display: grid; gap: 10px; }
+.plug { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+.plug-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.plug-head b { font-size: 13.5px; } .plug-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.plug-err { color: var(--err); font-size: 12.5px; }
+.plug-panel:empty { display: none; }
+.plug-panel { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 10px; }
+
+/* ---------- settings page ---------- */
+.spage { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
+.snav { border-right: 1px solid var(--line); background: var(--surface); padding: 14px 12px; overflow: auto; display: flex; flex-direction: column; }
+.snav h2 { margin: 14px 10px 10px; font-size: 18px; font-weight: 600; letter-spacing: -.015em; }
+.sback { justify-content: flex-start; height: 32px; padding: 0 8px; color: var(--muted); font-size: 13px; width: fit-content; }
+.sgroup { margin: 14px 10px 6px; font-size: 12px; color: var(--muted); }
+.sitem { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 8px;
+         background: transparent; color: var(--text-2); font-size: 13.5px; font-weight: 500; text-align: left; position: relative; }
+.sitem:hover { background: var(--hover); color: var(--text); }
+.sitem[aria-selected="true"] { background: var(--surface-3); color: var(--text); }
+.sitem[aria-selected="true"]::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.sitem span.nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitem .dot, .sdirty .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.scontent { min-height: 0; overflow: auto; display: flex; flex-direction: column; background: var(--bg); }
+.sinner { width: min(820px, 100%); margin: 0 auto; padding: 32px 32px 48px; flex: 1; }
+.shead { margin-bottom: 20px; }
+.shead h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.shead p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+.scard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sur); box-shadow: var(--shadow-1); }
+.scard + .scard { margin-top: 14px; }
+.spad { padding: 18px 20px; display: grid; gap: 16px; }
+.srow { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 28px; padding: 18px 20px; align-items: start; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.slab label, .slab .lab { display: block; font-weight: 600; font-size: 13.5px; }
+.slab p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+.sctl { min-width: 0; }
+.sctl.sw { justify-content: flex-end; }
+.spreview { margin-top: 12px; display: flex; gap: 10px; align-items: baseline; padding: 9px 12px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; overflow: hidden; }
+.spreview span { color: var(--muted); flex: none; }
+.spreview b { font-weight: 500; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slegend dl { margin: 0; padding: 14px 20px; display: grid; grid-template-columns: 90px 1fr; gap: 6px 14px; font-size: 12.5px; }
+.slegend dt { color: var(--text-2); } .slegend dd { margin: 0; color: var(--muted); }
+.sbar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 12px max(32px, calc((100% - 820px) / 2 + 32px));
+        border-top: 1px solid var(--line); background: var(--surface); box-shadow: 0 -6px 18px -12px rgba(0, 0, 0, .25); }
+.sbar .grow { flex: 1; }
+.sdirty { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); font-weight: 500; }
+.spanel .plug { padding: 16px 18px; }
+.plug-meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.chip { font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); }
+.chip.on { color: var(--ok); border-color: currentColor; }
+.splug { display: grid; gap: 14px; }
+.splug > .scard + .scard { margin-top: 0; }
+.pbody > .seg, .pbody > .btn { justify-self: start; }
+.splug > .status { padding: 4px 2px; }
+.pcard > header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 16px 20px 0; }
+.pcard > header h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.pcard > header p { grid-column: 1; margin: 0; color: var(--muted); font-size: 12.5px; }
+.pcard > header .chip { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.pcard .pbody { padding: 14px 20px 18px; display: grid; gap: 14px; }
+.pcard > footer { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-2); border-radius: 0 0 var(--r-sur) var(--r-sur); }
+.pstack { display: grid; gap: 14px; }
+.pstack > .sw + .sw { padding-top: 14px; border-top: 1px solid var(--line); }
+.pstack .sw b { display: block; font-size: 13px; font-weight: 600; }
+.pstack .sw small, .pstack .sw .hint { display: block; color: var(--muted); font-size: 12.5px; }
+.pgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.pfield label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 5px; }
+.pfield small { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.punit { display: flex; align-items: center; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); overflow: hidden; }
+.punit:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.punit .text { border: 0; box-shadow: none !important; flex: 1; min-width: 0; }
+.punit span { padding: 0 12px; color: var(--muted); font-size: 12.5px; border-left: 1px solid var(--line); align-self: stretch; display: grid; place-items: center; background: var(--surface-2); }
+.pnotice { padding: 10px 14px; border-radius: 10px; font-size: 13px; border: 1px solid var(--line); background: var(--surface); }
+.pnotice.err { color: var(--err); background: var(--err-soft); border-color: transparent; }
+select.text { appearance: auto; }
+@media (max-width: 700px) { .pgrid { grid-template-columns: 1fr; } }
+#settingsBtn[aria-current="page"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+@media (max-width: 900px) {
+  .spage { display: block; }
+  .snav { border-right: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; }
+  .snav h2 { display: none; }
+  .snav, .scontent { min-width: 0; max-width: 100vw; }
+  #sNav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  .sgroup { display: none; }
+  .sitem { width: auto; flex: none; }
+  .sitem[aria-selected="true"]::before { display: none; }
+  .sinner { padding: 20px 16px 32px; }
+  .srow { grid-template-columns: 1fr; gap: 10px; padding: 16px; }
+  .sbar { padding: 12px 16px; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 1280px) {
+  .cols, .row { grid-template-columns: minmax(150px, 2fr) minmax(0, 1fr) minmax(150px, 1fr) 112px var(--acts-w, 312px); }
+  .c-ref { display: none !important; }
+  .who .refline { display: block; }
+}
+.who .refline { display: none; }
+@media (max-width: 1200px) {
+  .cols, .row { grid-template-columns: minmax(150px, 1.6fr) minmax(150px, 1fr) 112px calc(var(--acts-w, 312px) - 50px); }
+  .c-type { display: none !important; }
+  .c-when { display: none !important; }
+  .acts .btn .lbl-s { display: none; }
+}
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  .app { height: auto; display: block; }
+  .body { display: block; }
+  .side { border-right: 0; border-bottom: 1px solid var(--line); }
+  .session { margin-top: 0; }
+  .scroller { overflow: visible; }
+  .topbar .search { display: none; }
+  .crumb { display: none; }
+}
+@media (max-width: 700px) {
+  .cols { display: none; }
+  .row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
+  .row .c-type, .row .c-doc { display: none; }
+  .row .c-prev { grid-row: 1 / span 2; grid-column: 2; }
+  .row .acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .more, .note { grid-template-columns: 1fr; padding-left: 0; }
+  .mhead .btn .lbl, .topbar .btn .lbl { display: none; }
+  .scroller, .mhead, .tabs { padding-left: 12px; padding-right: 12px; }
+}
+@media (max-width: 1600px) {
+  .has-plugins .cols, .has-plugins .row { grid-template-columns: minmax(150px, 2fr) minmax(150px, 1fr) minmax(142px, 1.1fr) 112px var(--acts-w, 312px); }
+  .has-plugins .c-type { display: none !important; }
+}
+@media (max-width: 1280px) {
+  .has-plugins .cols, .has-plugins .row { grid-template-columns: minmax(120px, 2fr) minmax(140px, 1fr) 112px calc(var(--acts-w, 312px) - 80px); }
+}
+@media (max-width: 700px) { .has-plugins .row { grid-template-columns: minmax(0, 1fr) auto; } }
+@media (prefers-reduced-motion: reduce) { .flip .in, .skel, .spin { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/></svg></span>
+      Card Print Studio <span class="plan">Pro</span>
+      <span class="crumb">/ <b id="crumb">Exports</b></span>
+    </div>
+    <div class="grow"></div>
+    <label class="search"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="search" placeholder="Search name, document no. or job ref" spellcheck="false" aria-label="Search exports"><span class="kbd">/</span></label>
+    <div class="grow"></div>
+    <button class="btn quiet icon" id="themeBtn" aria-label="Switch light or dark mode"><svg class="i" id="themeIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button class="btn quiet" id="openFolderBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="lbl">Open folder</span></button>
+    <button class="btn" id="settingsBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span class="lbl">Settings</span></button>
+  </header>
+
+  <div class="body">
+    <aside class="side" aria-label="New job">
+      <div class="sec">
+        <h2>New job</h2>
+        <p class="lead">Pick the card type, then add one PDF or a whole batch.</p>
+        <div class="step"><span class="n">1</span>Card type</div>
+        <div id="types" role="radiogroup" aria-label="Card type"></div>
+        <div id="rcBox" hidden style="margin:12px 0 0">
+          <label class="t" for="rcNo" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Rice card (RC) number</label>
+          <input class="text mono" id="rcNo" inputmode="numeric" placeholder="10-digit RC number" autocomplete="off">
+          <p class="hint" style="margin:4px 0 0">Members, shop and district come from AePDS. Upload the <b>head of family's</b> e-Aadhaar for the photo, DOB and address.</p>
+        </div>
+        <div class="step"><span class="n">2</span>Add PDFs</div>
+        <label class="drop" id="drop">
+          <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+          <span class="up"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+          <b>Drop PDFs or click to choose</b>
+          <span>Select many at once &ndash; processed as <span class="as" id="chosenType">Auto-detect</span></span>
+        </label>
+        <div class="dest">
+          <span class="lbl">Save to</span><span class="p" id="destPath">…</span>
+          <span class="auto-on" id="autoPill" hidden>Auto-save</span>
+          <button class="btn quiet" id="changeDest" style="height:26px;padding:0 8px;font-size:12.5px">Change</button>
+        </div>
+      </div>
+      <div class="session" aria-label="This session">
+        <div class="stat"><b id="stReady">0</b><span>Ready</span></div>
+        <div class="stat"><b id="stSaved">0</b><span>Saved</span></div>
+        <button class="stat attn" id="stAttnBtn" title="Show items that need attention"><b id="stAttn">0</b><span>Need action</span></button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="mhead">
+        <h1>Exports</h1><span class="count" id="count"></span>
+        <div class="grow"></div>
+        <div class="seg" role="group" aria-label="View">
+          <button data-view="rows" aria-pressed="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>List</button>
+          <button data-view="cards" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>Grid</button>
+        </div>
+        <button class="btn" id="zipAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg><span class="lbl">Download all</span></button>
+        <button class="btn primary" id="saveAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg><span class="lbl">Save all to folder</span></button>
+        <button class="btn quiet" id="clearAll" title="Remove finished items from this list (files on disk are kept)">Clear</button>
+      </div>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Filter by card type"></nav>
+      <div class="scroller" id="scroller">
+        <div id="results"></div>
+        <div class="empty" id="empty">
+          <div class="icons" id="emptyIcons"></div>
+          <h3>No exports yet</h3>
+          <p>Choose a card type on the left and add the PDFs. You can select a whole batch at once &ndash; each PDF becomes its own front &amp; back export here.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- settings page (route #settings/<tab>) -->
+  <div class="spage" id="spage" hidden>
+    <nav class="snav" aria-label="Settings sections">
+      <button class="btn quiet sback" id="sBack"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Back to exports</button>
+      <h2>Settings</h2>
+      <div id="sNav" role="tablist" aria-orientation="vertical"></div>
+    </nav>
+    <div class="scontent" id="sContent">
+      <div class="sinner">
+        <header class="shead"><h1 id="sTitle">General</h1><p id="sDesc"></p></header>
+
+        <section class="spanel" data-panel="general" role="tabpanel">
+          <div class="scard">
+            <div class="srow">
+              <div class="slab"><label for="sFolder">Save location</label><p>&ldquo;Save&rdquo; writes the card images here. &ldquo;Download&rdquo; uses the browser&rsquo;s Downloads folder instead.</p></div>
+              <div class="sctl"><div class="rowf"><input class="text mono" id="sFolder" spellcheck="false" data-dirty><button class="btn" id="browseBtn">Browse…</button></div></div>
+            </div>
+            <div class="srow">
+              <div class="slab"><label for="sAuto">Auto-save</label><p>Save every finished card to the folder above straight away.</p></div>
+              <div class="sctl sw"><span class="hint" id="sAutoTxt"></span><input type="checkbox" id="sAuto" data-dirty></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="spanel" data-panel="names" role="tabpanel" hidden>
+          <div class="scard">
+            <div class="srow">
+              <div class="slab"><label for="sPattern">File name pattern</label><p>Click a token to insert it at the cursor.</p></div>
+              <div class="sctl">
+                <input class="text mono" id="sPattern" spellcheck="false" data-dirty>
+                <div class="tokens">
+                  <button class="token" data-t="{type}">{type}</button><button class="token" data-t="{name}">{name}</button>
+                  <button class="token" data-t="{id4}">{id4}</button><button class="token" data-t="{side}">{side}</button>
+                  <button class="token" data-t="{ref}">{ref}</button><button class="token" data-t="{date}">{date}</button>
+                  <button class="token" data-t="{file}">{file}</button><button class="token reset" data-reset="1">Reset</button>
+                </div>
+                <div class="spreview"><span>Example</span><b class="mono" id="patPreview"></b></div>
+              </div>
+            </div>
+            <div class="srow">
+              <div class="slab"><span class="lab">File type</span><p>Both are the same JPEG; pick the extension you prefer.</p></div>
+              <div class="sctl"><div class="seg" id="sExt"><button data-v=".jpeg">.jpeg</button><button data-v=".jpg">.jpg</button></div></div>
+            </div>
+          </div>
+          <div class="scard slegend">
+            <dl>
+              <dt class="mono">{type}</dt><dd>DL, VOTER, AADHAR_PVC, PAN, RATION, RC</dd>
+              <dt class="mono">{name}</dt><dd>card holder&rsquo;s name</dd>
+              <dt class="mono">{id4}</dt><dd>last 4 characters of the document number</dd>
+              <dt class="mono">{side}</dt><dd>FRONT or BACK</dd>
+              <dt class="mono">{ref}</dt><dd>job reference, e.g. JOB-7K4Q-2XM9</dd>
+              <dt class="mono">{date}</dt><dd>today, YYYY-MM-DD</dd>
+              <dt class="mono">{file}</dt><dd>the uploaded PDF&rsquo;s name</dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="spanel" data-panel="plugins" role="tabpanel" hidden>
+          <div class="plugins" id="pluginList"><span class="hint">No plugins installed.</span></div>
+          <p class="hint" style="margin:12px 2px 0">To remove a plugin completely, delete its folder in <span class="mono">plugins/</span>.</p>
+        </section>
+
+        <section class="spanel" data-panel="plugin" role="tabpanel" hidden>
+          <div class="splug" id="sPluginBody"></div>
+        </section>
+      </div>
+      <div class="sbar" id="sBar" hidden>
+        <span class="sdirty"><span class="dot"></span>Unsaved changes</span>
+        <div class="grow"></div>
+        <button class="btn" id="discardSettings">Discard</button>
+        <button class="btn primary" id="saveSettings">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay lightbox" id="lightbox">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+    <div class="dhead"><h3 id="lbTitle"></h3>
+      <div class="seg" id="lbSides"><button data-s="Front">Front</button><button data-s="Back">Back</button></div>
+      <button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download</button>
+      <button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="lb-img"><img id="lbImg" alt=""></div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+let settings = {}, cardType = 'auto', jobs = [], query = '', tab = 'all';
+let view = store.get('cps-view2') === 'cards' ? 'cards' : 'rows';
+
+const ICON = {
+  auto: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAu" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0e7ff"/><stop offset="1" stop-color="#a5b4fc"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gAu)"/>
+    <path d="M17 47L39 25" stroke="#3730a3" stroke-width="5.5" stroke-linecap="round"/><path d="M36 28l3-3" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
+    <g fill="#3730a3"><path d="M46 12l2.2 5.3 5.3 2.2-5.3 2.2L46 27l-2.2-5.3-5.3-2.2 5.3-2.2z"/><path d="M52 33l1.2 2.8 2.8 1.2-2.8 1.2L52 41l-1.2-2.8-2.8-1.2 2.8-1.2z"/><path d="M24 14l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z"/></g></svg>`,
+  dl: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gDl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gDl)"/>
+    <circle cx="32" cy="32" r="19" fill="none" stroke="#fff" stroke-width="5"/>
+    <path d="M14.5 30.5L27 33.5M49.5 30.5L37 33.5M32 39v12" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="32" cy="33.5" r="6" fill="#fff"/><circle cx="32" cy="33.5" r="2.2" fill="#1d4ed8"/></svg>`,
+  rc: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gRc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#14b8a6"/><stop offset="1" stop-color="#0f766e"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gRc)"/>
+    <path d="M12 37q0-6 5-7l4.5-9.5Q23 17 27 17h10q4 0 5.5 3.5L47 30q5 1 5 7v6q0 2-2 2H14q-2 0-2-2z" fill="#fff"/>
+    <path d="M24.5 21.5h15l3.2 8H21.3z" fill="#0f766e"/>
+    <circle cx="19" cy="37.5" r="3" fill="#0f766e"/><circle cx="45" cy="37.5" r="3" fill="#0f766e"/>
+    <rect x="26" y="36" width="12" height="3.4" rx="1.2" fill="#0f766e"/>
+    <rect x="15" y="44" width="8" height="7" rx="2" fill="#fff"/><rect x="41" y="44" width="8" height="7" rx="2" fill="#fff"/></svg>`,
+  voter: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gVo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffedd5"/><stop offset="1" stop-color="#fdba74"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gVo)"/>
+    <rect x="23" y="7" width="12" height="34" rx="6" fill="#f2c28f" stroke="#b9773f" stroke-width="1.4"/>
+    <rect x="25.2" y="9" width="7.6" height="9" rx="3.8" fill="#fde4e8" stroke="#d9a3a9" stroke-width=".8"/>
+    <path d="M29 11.5v14" stroke="#4c1d95" stroke-width="3.4" stroke-linecap="round"/>
+    <rect x="21" y="33" width="27" height="24" rx="9" fill="#f2c28f" stroke="#b9773f" stroke-width="1.4"/>
+    <path d="M35 40h9M35 45.5h9M35 51h7" stroke="#b9773f" stroke-width="1.4" stroke-linecap="round"/>
+    <ellipse cx="25" cy="45" rx="8.5" ry="4.6" fill="#f5cd9f" stroke="#b9773f" stroke-width="1.4"/></svg>`,
+  pan: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gPa" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#3730a3"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gPa)"/>
+    <path d="M17 9h21l9 9v37H17z" fill="#fff"/><path d="M38 9v9h9z" fill="#c7d2fe"/>
+    <text x="32" y="38" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="800" fill="#3730a3">&#8377;</text>
+    <rect x="22" y="43" width="20" height="2.8" rx="1.4" fill="#a5b4fc"/><rect x="22" y="48.5" width="13" height="2.8" rx="1.4" fill="#a5b4fc"/></svg>`,
+  aadhaar: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAa2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff4dc"/><stop offset=".55" stop-color="#ffffff"/><stop offset="1" stop-color="#e3f4e3"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gAa2)"/>
+    <image href="/img/aadhaar.png" x="5" y="11" width="54" height="42" preserveAspectRatio="xMidYMid meet"/></svg>`,
+};
+
+
+ICON.ration = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gRa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gRa)"/><path d="M12 33h40q-2 17-20 17T12 33z" fill="#c2410c"/>
+    <g fill="#fff"><ellipse cx="22" cy="28" rx="3" ry="5" transform="rotate(-25 22 28)"/><ellipse cx="30" cy="25" rx="3" ry="5"/><ellipse cx="38" cy="26" rx="3" ry="5" transform="rotate(20 38 26)"/><ellipse cx="45" cy="29" rx="3" ry="5" transform="rotate(35 45 29)"/><ellipse cx="34" cy="31" rx="3" ry="4.5" transform="rotate(-10 34 31)"/></g>
+    <rect x="12" y="31" width="40" height="4" rx="2" fill="#9a3412"/></svg>`;
+ICON.aadhaar_lam = ICON.aadhaar.replace('</svg>', '<rect x="34" y="44" width="26" height="16" rx="4" fill="#65a30d"/><text x="47" y="56" text-anchor="middle" font-family="Segoe UI, Arial" font-size="11" font-weight="800" fill="#fff">A4</text></svg>');
+const TYPE_INFO = {
+  auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
+  aadhaar: {name: 'Aadhaar PVC',     short: 'Aadhaar',     dot: '#16a34a', sub: 'e-Aadhaar letter, locked or not'},
+  ration:  {name: 'Ration Card',     short: 'Ration Card', dot: '#c2410c', sub: 'Head of family\'s e-Aadhaar + RC number (members from AePDS)'},
+  aadhaar_lam: {name: 'Aadhaar Laminated', short: 'Aadhaar A4', dot: '#65a30d', sub: 'A4 sheets for lamination: Full, Both and Small, with the green tick + timestamp'},
+  pan:     {name: 'PAN Card',        short: 'PAN',         dot: '#4f46e5', sub: 'e-PAN or Instant e-PAN'},
+  voter:   {name: 'Voter ID',        short: 'Voter ID',    dot: '#ea580c', sub: 'e-EPIC sheet'},
+  dl:      {name: 'Driving Licence', short: 'Driving Licence', dot: '#2563eb', sub: '2-page DL PDF'},
+  rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
+};
+const typeName = k => (TYPE_INFO[k] || {}).name || k;
+const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration']], ['Vehicle', ['dl', 'rc']]];
+const SVG = {
+  down: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>',
+  save: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg>',
+  more: '<svg class="i" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  x: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  flip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>',
+  zoom: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  sun: '<path d="M12 3v2M12 19v2M5 5l1.4 1.4M17.6 17.6L19 19M3 12h2M19 12h2M5 19l1.4-1.4M17.6 6.4L19 5"/><circle cx="12" cy="12" r="4"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+};
+
+/* ---------- helpers ---------- */
+function today() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+function stamp() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${today()}_${p(d.getHours())}${p(d.getMinutes())}`; }
+function toast(msg, opts = {}) {
+  const t = document.createElement('div'); t.className = 'toast' + (opts.error ? ' err' : '');
+  t.innerHTML = `<span>${esc(msg)}</span>` + (opts.action ? `<button>${esc(opts.action)}</button>` : '');
+  if (opts.action) t.querySelector('button').onclick = () => { opts.onAction(); t.remove(); };
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), opts.error ? 7000 : 4500);
+}
+async function api(url, body) {
+  const r = await fetch(url, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+  return data;
+}
+
+/* ---------- plugin host API ---------- */
+const CPS = window.CPS = {
+  api, toast, esc, SVG,
+  rowActions: [], settingsPanels: {},
+  registerRowAction(a) { this.rowActions.push(a); document.body.classList.add('has-plugins'); document.documentElement.style.setProperty('--acts-w', (312 + 100 * this.rowActions.length - 56) + 'px'); render(); },
+  registerSettingsPanel(id, fn) { this.settingsPanels[id] = fn; if (typeof settingsPluginReady === 'function') settingsPluginReady(id); },
+  jobView(j) { return {pdf: !!j.pdf, job: j.job, ref: j.ref, source: j.source, sides: [...(j.sides || [])], names: {...j.names}, details: {...(j.details || {})}, type: typeOf(j)}; },
+};
+let PLUGINS = [];
+async function loadPlugins() {
+  try { PLUGINS = await api('/api/plugins'); } catch { PLUGINS = []; }
+  for (const p of PLUGINS) if (p.enabled && p.ui) {
+    const sc = document.createElement('script'); sc.src = `/plugins/${p.id}/ui.js`; document.body.appendChild(sc);
+  }
+}
+function renderPlugins() {
+  const box = $('#pluginList');
+  if (!PLUGINS.length) { box.innerHTML = '<span class="hint">No plugins installed.</span>'; return; }
+  box.innerHTML = PLUGINS.map(p => `<div class="plug scard"><div class="plug-head"><div><b>${esc(p.name)}</b> <span class="hint mono">v${esc(p.version)}</span><p>${esc(p.description)}</p>
+      ${p.error ? `<div class="plug-err">Could not load: ${esc(p.error)}</div>` : ''}
+      <div class="plug-meta"><span class="chip ${p.enabled ? 'on' : ''}">${p.enabled ? 'On' : 'Off'}</span>
+        ${p.enabled && p.ui ? `<button class="btn quiet" style="height:28px;padding:0 8px;font-size:12.5px" data-goto="p-${esc(p.id)}">Open settings &rarr;</button>` : ''}</div></div>
+      <label class="sw"><input type="checkbox" data-plugin="${esc(p.id)}" ${p.enabled ? 'checked' : ''} ${p.error ? 'disabled' : ''} aria-label="Enable ${esc(p.name)}"></label></div></div>`).join('');
+  box.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => openSettings(b.dataset.goto));
+  box.querySelectorAll('input[data-plugin]').forEach(i => i.onchange = async () => {
+    try { await api('/api/plugins/' + i.dataset.plugin, {enabled: i.checked}); toast(`${i.checked ? 'Enabled' : 'Disabled'} – reloading…`); setTimeout(() => location.reload(), 700); }
+    catch (e) { toast(e.message, {error: true}); }
+  });
+}
+
+/* ---------- names (mirror of card_details.export_name) ---------- */
+const DEFAULT_PATTERN = '{type}_{name}_{id4}_{side}';
+const slug = (v, upper = true) => { const x = String(v || '').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '');
+  return (upper ? x.toUpperCase() : x).slice(0, 28).replace(/-$/, ''); };
+function applyPattern(pattern, j, side) {
+  const d = j.details || {};
+  const vals = {'{type}': d.type_label || '', '{name}': slug(d.name) || slug(j.source, false), '{id4}': d.id4 || '', '{id}': slug(d.id),
+                '{side}': String(side).toUpperCase(), '{ref}': j.ref || '', '{file}': slug(j.source, false), '{date}': today()};
+  let out = pattern || DEFAULT_PATTERN;
+  for (const [k, v] of Object.entries(vals)) out = out.replaceAll(k, v);
+  out = out.replace(/([_\-. ])\1+/g, '$1').replace(/[_\- ]+([_\-])/g, '$1').replace(/^[_\- .]+|[_\- .]+$/g, '');
+  return out || ('card_' + String(side).toUpperCase());
+}
+const baseName = j => applyPattern((settings.name_pattern || DEFAULT_PATTERN).replace('{side}', ''), j, '');
+const SAMPLE = {source: '01011961', ref: 'JOB-7K4Q-2XM9', details: {type_label: 'PAN', name: 'C REDDAMMA', id4: '017N'}};
+
+/* ---------- theme ---------- */
+const effTheme = () => { const t = document.documentElement.dataset.theme; return (t === 'light' || t === 'dark') ? t : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); };
+function themeIcon() { $('#themeIc').innerHTML = effTheme() === 'dark' ? SVG.sun : SVG.moon; $('#themeBtn').title = effTheme() === 'dark' ? 'Light mode' : 'Dark mode'; }
+$('#themeBtn').onclick = () => { const n = effTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = n; store.set('cps-theme', n); themeIcon(); };
+themeIcon();
+
+/* ---------- type picker ---------- */
+function pickHtml(k, cls) {
+  const on = k === cardType, t = TYPE_INFO[k] || {};
+  return `<button type="button" class="pick ${cls}" role="radio" aria-checked="${on}" data-k="${k}" title="${esc(t.sub || '')}">
+      <span class="ic">${ICON[k] || ''}</span>
+      ${cls === 'auto' ? `<span><b>Auto-detect</b><small>Recommended &ndash; recognises every card type</small></span>` : `<b>${esc(t.short || k)}</b>`}
+      <span class="tick">${SVG.check}</span></button>`;
+}
+function renderTypes() {
+  const keys = Object.keys(settings.card_types || {auto: 1});
+  let h = keys.includes('auto') ? pickHtml('auto', 'auto') : '';
+  for (const [label, ks] of CATS) {
+    const list = ks.filter(k => keys.includes(k)); if (!list.length) continue;
+    h += `<div class="group">${label}</div><div class="tiles">${list.map(k => pickHtml(k, 'tile')).join('')}</div>`;
+  }
+  $('#types').innerHTML = h;
+  $('#chosenType').textContent = typeName(cardType);
+  $('#emptyIcons').innerHTML = ['aadhaar', 'pan', 'voter', 'dl', 'rc'].map(k => `<span title="${esc(typeName(k))}">${ICON[k]}</span>`).join('');
+}
+$('#types').addEventListener('click', e => {
+  const b = e.target.closest('.pick'); if (!b) return;
+  cardType = b.dataset.k; renderTypes(); $('#rcBox').hidden = cardType !== 'ration'; if (cardType === 'ration') $('#rcNo').focus();
+});
+
+/* ---------- settings ---------- */
+async function loadSettings() {
+  settings = await api('/api/settings');
+  $('#destPath').textContent = settings.save_folder; $('#destPath').title = settings.save_folder;
+  $('#autoPill').hidden = !settings.auto_save;
+  renderTypes();
+}
+function setExt(v) { document.querySelectorAll('#sExt button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+const curExt = () => document.querySelector('#sExt button[aria-pressed="true"]')?.dataset.v || '.jpeg';
+const updatePreview = () => { $('#patPreview').textContent = applyPattern($('#sPattern').value, SAMPLE, 'Front') + curExt(); };
+const SI = d => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${d}</svg>`;
+const SICON = {
+  general: SI('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  names: SI('<path d="M4 7V5h16v2M9 19h6M12 5v14"/>'),
+  printer: SI('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>'),
+  card: SI('<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/>'),
+  plugins: SI('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 13v7M13 16.5h7"/>'),
+};
+function settingsTabs() {
+  const t = [{id: 'general', group: 'Workspace', name: 'General', icon: SICON.general, desc: 'Where finished cards are saved.', dirtyAware: true},
+             {id: 'names', group: 'Workspace', name: 'File names', icon: SICON.names, desc: 'How exported card images are named.', dirtyAware: true}];
+  for (const p of PLUGINS) if (p.enabled && !p.error && p.ui)
+    t.push({id: 'p-' + p.id, group: 'Printers & plugins', name: ({epson_pvc: 'Card printer · Epson', office_print: 'A4 printer · Office'})[p.id] || p.name.replace(/ printing$/i, ''),
+            icon: /pvc|card/i.test(p.id + ' ' + p.name) ? SICON.card : SICON.printer, desc: p.description, plugin: p});
+  t.push({id: 'plugins', group: 'Printers & plugins', name: 'Manage plugins', icon: SICON.plugins, desc: 'Turn optional features on or off.'});
+  return t;
+}
+let sTab = 'general', sDirty = false, sInPage = false;
+const autoTxt = () => { $('#sAutoTxt').textContent = $('#sAuto').checked ? 'On' : 'Off'; };
+function fillSettingsForm() {
+  $('#sFolder').value = settings.save_folder; $('#sAuto').checked = !!settings.auto_save; $('#sPattern').value = settings.name_pattern;
+  setExt(settings.extension); updatePreview(); autoTxt();
+}
+function setDirty(v) {
+  sDirty = v; const tab = settingsTabs().find(t => t.id === sTab);
+  $('#sBar').hidden = !(v && tab && tab.dirtyAware); renderSettingsNav();
+}
+function renderSettingsNav() {
+  let h = '', g = '';
+  for (const t of settingsTabs()) {
+    if (t.group !== g) { g = t.group; h += `<div class="sgroup">${esc(g)}</div>`; }
+    h += `<button class="sitem" role="tab" data-tab="${esc(t.id)}" aria-selected="${t.id === sTab}">${t.icon}<span class="nm">${esc(t.name)}</span>${sDirty && t.dirtyAware ? '<span class="dot" title="Unsaved changes"></span>' : ''}</button>`;
+  }
+  $('#sNav').innerHTML = h;
+}
+function showSettingsTab(id) {
+  const tabs = settingsTabs(), t = tabs.find(x => x.id === id) || tabs[0];
+  sTab = t.id;
+  $('#sTitle').textContent = t.plugin ? t.plugin.name : t.name; $('#sDesc').textContent = t.desc || '';
+  document.querySelectorAll('.spanel').forEach(pn => pn.hidden = pn.dataset.panel !== (t.plugin ? 'plugin' : t.id));
+  if (t.id === 'plugins') renderPlugins();
+  if (t.plugin) {
+    const el = $('#sPluginBody'), fn = CPS.settingsPanels[t.plugin.id];
+    el.innerHTML = fn ? '' : '<span class="status"><span class="spin"></span>Loading…</span>';
+    if (fn) try { fn(el); } catch (e) { el.innerHTML = `<p class="plug-err">${esc(e.message)}</p>`; }
+  }
+  $('#sBar').hidden = !(sDirty && t.dirtyAware);
+  renderSettingsNav(); $('#sContent').scrollTop = 0;
+}
+function settingsPluginReady(id) { if (sInPage && sTab === 'p-' + id) showSettingsTab(sTab); else if (sInPage) renderSettingsNav(); }
+function route() {
+  const m = location.hash.match(/^#settings(?:\/([\w-]+))?/), open = !!m;
+  if (open && !sInPage && !sDirty) fillSettingsForm();
+  sInPage = open;
+  document.querySelector('.body').hidden = open; $('#spage').hidden = !open;
+  $('#crumb').textContent = open ? 'Settings' : 'Exports';
+  if (open) $('#settingsBtn').setAttribute('aria-current', 'page'); else $('#settingsBtn').removeAttribute('aria-current');
+  document.title = open ? 'Settings · Card Print Studio' : 'Card Print Studio';
+  if (open) showSettingsTab((m && m[1]) || sTab);
+}
+function openSettings(tab) { location.hash = '#settings/' + (typeof tab === 'string' ? tab : (sTab || 'general')); }
+function closeSettings() { if (location.hash) history.pushState('', document.title, location.pathname + location.search); route(); }
+window.addEventListener('hashchange', route);
+window.addEventListener('popstate', route);
+$('#settingsBtn').onclick = () => sInPage ? closeSettings() : openSettings();
+$('#changeDest').onclick = () => openSettings('general');
+$('#sBack').onclick = closeSettings;
+$('#sNav').addEventListener('click', e => { const b = e.target.closest('.sitem'); if (b) openSettings(b.dataset.tab); });
+$('#spage').addEventListener('input', e => { if (e.target.closest('[data-dirty]')) setDirty(true); });
+$('#sAuto').addEventListener('change', () => { autoTxt(); setDirty(true); });
+$('#discardSettings').onclick = () => { fillSettingsForm(); setDirty(false); toast('Changes discarded'); };
+$('#sPattern').oninput = updatePreview;
+document.querySelectorAll('#sExt button').forEach(b => b.onclick = () => { setExt(b.dataset.v); updatePreview(); setDirty(true); });
+document.querySelectorAll('.token').forEach(t => t.onclick = () => {
+  const i = $('#sPattern');
+  if (t.dataset.reset) { i.value = DEFAULT_PATTERN; updatePreview(); setDirty(true); return; }
+  const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + t.dataset.t + i.value.slice(i.selectionEnd ?? p); i.focus(); updatePreview(); setDirty(true);
+});
+$('#browseBtn').onclick = async () => {
+  const b = $('#browseBtn'); b.disabled = true; b.textContent = 'Choose in the window…';
+  try { const r = await api('/api/browse', {}); if (r.folder) { $('#sFolder').value = r.folder; setDirty(true); } } catch (e) { toast(e.message, {error: true}); }
+  b.disabled = false; b.textContent = 'Browse…';
+};
+$('#saveSettings').onclick = async () => {
+  const old = settings.name_pattern;
+  try {
+    Object.assign(settings, await api('/api/settings', {save_folder: $('#sFolder').value.trim(), auto_save: $('#sAuto').checked,
+      name_pattern: $('#sPattern').value.trim() || DEFAULT_PATTERN, extension: curExt()}));
+    $('#destPath').textContent = settings.save_folder; $('#destPath').title = settings.save_folder; $('#autoPill').hidden = !settings.auto_save;
+    if (old !== settings.name_pattern) jobs.forEach(j => (j.sides || []).forEach(s => { if (!j.edited[s]) j.names[s] = applyPattern(settings.name_pattern, j, s); }));
+    setDirty(false); render(); toast('Settings saved');
+  } catch (e) { toast(e.message, {error: true}); }
+};
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-close]')) o.classList.remove('open'); }));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const open = document.querySelectorAll('.overlay.open');
+    if (open.length) open.forEach(o => o.classList.remove('open'));
+    else if (sInPage && !/input|textarea|select/i.test(document.activeElement.tagName)) closeSettings();
+  }
+  if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); $('#search').focus(); }
+});
+$('#openFolderBtn').onclick = () => api('/api/open-folder', {}).catch(e => toast(e.message, {error: true}));
+
+/* ---------- upload / queue ---------- */
+const drop = $('#drop');
+$('#fileInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
+let queue = Promise.resolve();
+function addFiles(list) {
+  const files = [...list].filter(f => /\.pdf$/i.test(f.name));
+  if (!files.length) { toast('Please choose PDF files', {error: true}); return; }
+  const rc = cardType === 'ration' ? $('#rcNo').value.replace(/\D/g, '') : '';
+  if (cardType === 'ration' && rc.length < 8) { toast('Enter the rice card (RC) number first', {error: true}); $('#rcNo').focus(); return; }
+  if (cardType === 'ration' && files.length > 1) { toast('Ration Card: add one Aadhaar PDF per RC number', {error: true}); return; }
+  if (files.length > 1) toast(`${files.length} PDFs added – processing one after another`);
+  for (const f of files) {
+    const j = {key: Math.random().toString(36).slice(2), source: f.name.replace(/\.pdf$/i, ''), state: 'waiting', names: {}, edited: {}, type: cardType, file: f, side: 'Front', rc};
+    jobs.unshift(j); queue = queue.then(() => processJob(j, f));
+  }
+  if (tab !== 'all' && tab !== cardType) tab = 'all';
+  render();
+}
+async function processJob(j, file, password) {
+  j.state = 'working'; j.error = ''; render();
+  const fd = new FormData(); fd.append('file', file); fd.append('card_type', j.type); if (j.rc) fd.append('rc_no', j.rc);
+  if (password) fd.append('password', password);
+  try {
+    const r = await fetch('/api/process', {method: 'POST', body: fd});
+    const data = await r.json().catch(() => ({}));
+    if (data.needs_password) { j.state = 'locked'; j.error = data.error; render(); return; }
+    if (!r.ok) throw new Error(data.error || `Failed (${r.status})`);
+    Object.assign(j, {job: data.job, sides: data.sides, state: 'done', usedType: data.type, details: data.details || {},
+                      ref: data.ref, hasPhoto: data.has_photo, pdf: !!data.has_pdf, ration: data.ration || null, doneAt: new Date(), file: null});
+    j.sides.forEach(s => j.names[s] = applyPattern(settings.name_pattern, j, s));
+    render();
+    if (settings.auto_save) await saveItems(itemsOf(j), true);
+  } catch (e) { j.state = 'error'; j.error = e.message; render(); }
+}
+
+/* ---------- actions ---------- */
+const itemsOf = j => (j.sides || []).map(side => ({job: j.job, side, name: j.names[side]}));
+function downloadOne(j, side) {
+  const a = document.createElement('a');
+  a.href = `/api/download/${j.job}/${encodeURIComponent(side)}?name=${encodeURIComponent(j.names[side])}`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const downloadBoth = j => j.sides.forEach((s, i) => setTimeout(() => downloadOne(j, s), i * 350));
+async function downloadZip(items, zipName) {
+  try {
+    const r = await fetch('/api/zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({items, zip_name: zipName})});
+    if (!r.ok) throw new Error('Could not build the ZIP');
+    const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = zipName + '.zip';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { toast(e.message, {error: true}); }
+}
+async function saveItems(items, auto = false) {
+  if (!items.length) return;
+  try {
+    const r = await api('/api/save', {items});
+    new Set(items.map(i => i.job)).forEach(id => { const jj = jobs.find(x => x.job === id); if (jj) jj.saved = true; });
+    const renamed = r.saved.filter((n, i) => !n.toLowerCase().startsWith(String(items[i].name).toLowerCase() + '.'));
+    render();
+    toast(`${auto ? 'Auto-saved' : 'Saved'} ${r.saved.length} file${r.saved.length > 1 ? 's' : ''}` + (renamed.length ? ` (${renamed.length} renamed to avoid overwriting)` : ''),
+          {action: 'Open folder', onAction: () => api('/api/open-folder', {})});
+  } catch (e) { toast(e.message, {error: true}); }
+}
+const doneShown = () => visible().filter(j => j.state === 'done');
+$('#zipAll').onclick = () => { const l = doneShown(); downloadZip(l.flatMap(itemsOf), `CARD-EXPORTS_${stamp()}_${l.length}-cards`); };
+$('#saveAll').onclick = () => saveItems(doneShown().flatMap(itemsOf));
+$('#clearAll').onclick = () => { jobs = jobs.filter(j => j.state === 'working' || j.state === 'waiting'); render(); };
+$('#stAttnBtn').onclick = () => { tab = 'attention'; render(); };
+
+/* ---------- filtering ---------- */
+const typeOf = j => j.usedType || (j.type !== 'auto' ? j.type : null);
+const needsAction = j => j.state === 'error' || j.state === 'locked';
+function matches(j) {
+  if (tab === 'attention' && !needsAction(j)) return false;
+  if (tab !== 'all' && tab !== 'attention' && typeOf(j) !== tab) return false;
+  if (!query) return true;
+  const d = j.details || {};
+  const hay = [d.name, d.id, d.type_label, typeOf(j) && typeName(typeOf(j)), j.source, j.ref, ...Object.values(j.names || {})].filter(Boolean).join(' ').toLowerCase();
+  return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+}
+const visible = () => jobs.filter(matches);
+$('#search').addEventListener('input', e => { query = e.target.value.trim(); render(); });
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { tab = b.dataset.tab; render(); } });
+document.querySelectorAll('.seg[aria-label="View"] button').forEach(b => b.onclick = () => { view = b.dataset.view; store.set('cps-view2', view); render(); });
+
+/* ---------- render pieces ---------- */
+const img = (j, s) => `/api/image/${j.job}/${encodeURIComponent(s)}?v=${j.v || 0}`;
+function initials(n) { return String(n || '?').split(/\s+/).filter(w => /[A-Za-z]/.test(w[0] || '')).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?'; }
+function avatarHtml(j) {
+  const t = typeOf(j);
+  if (j.state === 'done' && t === 'rc') return `<span class="ava sq" title="Vehicle RC">${ICON.rc}</span>`;
+  const badge = t && ICON[t] ? `<span class="tb">${ICON[t]}</span>` : '';
+  if (j.state === 'done' && j.hasPhoto) return `<span class="ava"><img src="/api/photo/${j.job}" alt="" loading="lazy">${badge}</span>`;
+  if (j.state === 'working') return `<span class="ava"><span class="spin"></span></span>`;
+  return `<span class="ava">${esc(initials(j.details?.name || j.source))}${badge}</span>`;
+}
+function whoHtml(j) {
+  const n = j.details?.name;
+  const title = n ? `<b title="${esc(n)}">${esc(n)}</b>` : (j.state === 'done' ? `<b class="unk" title="This PDF has no readable name (e.g. a scanned Voter ID)">Name not in PDF</b>` : `<b>${esc(j.source)}.pdf</b>`);
+  let sub = `${esc(j.source)}.pdf` + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
+  if (j.state === 'waiting') sub = 'Waiting in queue';
+  if (j.state === 'working') sub = 'Processing…';
+  return `<span class="who">${title}<small title="${esc(j.source)}.pdf">${sub}</small>${j.ref ? `<small class="refline mono">${esc(j.ref)}</small>` : ''}</span>`;
+}
+const chipHtml = t => t && TYPE_INFO[t] ? `<span class="chip"><i style="background:${TYPE_INFO[t].dot}"></i>${esc(TYPE_INFO[t].name)}</span>` : '';
+const docHtml = j => j.details?.id4 ? `<span class="docno"><span class="l">${esc(j.details.id_label)}</span>•••• ${esc(j.details.id4)}</span>` : `<span class="docno" style="color:var(--faint);font-family:var(--font);font-size:12.5px" title="This PDF has no readable document number">No number in PDF</span>`;
+const refHtml = j => j.ref ? `<button class="ref" data-act="copyref" data-key="${j.key}" title="Job reference – click to copy">${esc(j.ref)}${SVG.copy}</button>` : '';
+function whenText(j) {
+  if (!j.doneAt) return '';
+  const d = j.doneAt, t = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  return d.toDateString() === new Date().toDateString() ? `Today, ${t}` : d.toLocaleDateString([], {day: 'numeric', month: 'short'}) + ', ' + t;
+}
+const isSheet = j => typeOf(j) === 'aadhaar_lam';
+function curSide(j) { return (j.sides || []).includes(j.side) ? j.side : (j.sides || ['Front'])[0]; }
+function flipHtml(j) {
+  if (isSheet(j)) {                       // A4 sheets: show the current one, step through the others
+    const s = curSide(j), i = j.sides.indexOf(s), next = j.sides[(i + 1) % j.sides.length];
+    return `<div class="flip sheet" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
+      <span class="side-tag">${esc(s)}</span>
+      <div class="in"><div class="face f"><img src="${img(j, s)}" alt="${esc(s)}" loading="lazy"></div></div>
+      <div class="tools"><button class="ft" data-act="flip" data-key="${j.key}" title="Show ${esc(next)}">${SVG.flip}${esc(next)}</button>
+        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
+  }
+  const back = j.side === 'Back', hasBack = (j.sides || []).includes('Back');
+  return `<div class="flip ${back ? 'back' : ''}" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
+      <span class="side-tag">${back ? 'Back' : 'Front'}</span>
+      <div class="in"><div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>
+      ${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}</div>
+      <div class="tools">${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}">${SVG.flip}${back ? 'Front' : 'Back'}</button>` : ''}
+        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
+}
+function actsHtml(j, grid) {
+  if (j.state === 'done') return `
+    <button class="btn ${grid ? '' : 'lg'}" data-act="save" data-key="${j.key}" title="Save front + back to the save folder">${SVG.save}<span class="lbl-s">Save</span></button>
+    ${CPS.rowActions.filter(a => !a.when || a.when(CPS.jobView(j))).map(a => `<button class="btn ${grid ? '' : 'lg'}" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}<span class="lbl-s">${esc(a.label)}</span></button>`).join('')}
+    ${j.pdf ? `<button class="btn primary ${grid ? '' : 'lg'}" data-act="pdf" data-key="${j.key}" title="Download the print-quality PDF (all sheets)">${SVG.down}PDF</button>`
+            : `<button class="btn primary ${grid ? '' : 'lg'}" data-act="both" data-key="${j.key}" title="Download front + back JPEGs">${SVG.down}Download</button>`}
+    <button class="btn quiet icon ${grid ? '' : 'lg'}" data-act="more" data-key="${j.key}" aria-expanded="${!!j.open}" title="Rename files, single side, remove">${SVG.more}</button>`;
+  if (needsAction(j)) return `<button class="btn quiet icon" data-act="remove" data-key="${j.key}" title="Remove">${SVG.x}</button>`;
+  return `<span class="status"><span class="spin"></span>${j.state === 'working' ? 'Processing' : 'Queued'}</span>`;
+}
+function numberRcRows(box) {
+  let n = 2;
+  box.querySelectorAll('.rc-row').forEach(r => { if (r.querySelector('.rc-mv')) r.querySelector('.rc-no').textContent = String(n++).padStart(2, '0'); });
+}
+function extraHtml(j) {
+  if (j.state === 'done' && j.open && j.ration) return `<div class="more rc-edit">
+      <div class="field" style="grid-column:1/-1"><label>Members as printed &ndash; fix Telugu spelling, set the birth date if known, and use &uarr; &darr; to match the order on an old card. Then <b>Update card</b>.</label></div>
+      <div class="rc-rows" style="grid-column:1/-1">${j.ration.members.map((m, i) => `<div class="rc-row" data-i="${i}">
+        <span class="rc-no mono">${m.head ? 'Head' : String(i + 1).padStart(2, '0')}</span>
+        <div class="rc-who"><small>${esc(m.name_en || 'Head of family')}${m.relation ? ' · ' + esc(m.relation) : ''}</small>
+          <input class="text" data-rcname="${i}" value="${esc(m.name)}" spellcheck="false" aria-label="Telugu name"></div>
+        ${m.head ? '<span></span><span></span>' : `<input class="text mono rc-dob" data-rcdob="${i}" value="${esc((m.dob_age || '').split('/')[0])}" placeholder="YYYY-MM-DD" aria-label="Birth date">
+        <span class="rc-mv"><button class="btn quiet icon" data-act="rcup" data-key="${j.key}" title="Move up">&uarr;</button><button class="btn quiet icon" data-act="rcdown" data-key="${j.key}" title="Move down">&darr;</button></span>`}
+      </div>`).join('')}</div>
+      <div class="field" style="grid-column:1/-1"><label>Permanent address</label>
+        <input class="text" data-rcaddr="1" data-key="${j.key}" value="${esc(j.ration.permanent_address)}" spellcheck="false"></div>
+      <div class="acts" style="grid-column:1/-1;justify-content:flex-start">
+        <button class="btn primary" data-act="rcsave" data-key="${j.key}">Update card</button>
+        ${j.sides.map(s => `<button class="btn quiet" data-act="dl" data-key="${j.key}" data-side="${esc(s)}">${SVG.down}${esc(s)}</button>`).join('')}
+        <button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
+  if (j.state === 'done' && j.open) return `<div class="more">${j.sides.map(s => `
+      <div class="field"><label>${esc(s)} file name</label><div class="name"><input value="${esc(j.names[s])}" data-key="${j.key}" data-side="${esc(s)}" spellcheck="false" aria-label="${esc(s)} file name"><span>${esc(settings.extension || '.jpeg')}</span>
+        <button class="btn quiet icon" data-act="dl" data-key="${j.key}" data-side="${esc(s)}" title="Download ${esc(s)} only">${SVG.down}</button></div></div>`).join('')}
+      <div class="acts"><button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
+  if (j.state === 'locked') return `<div class="note"><form class="lock" data-key="${j.key}"><strong style="color:var(--err)">${esc(j.error)}</strong>
+      <input type="password" placeholder="PDF password" autocomplete="off" data-pw="${j.key}"><button class="btn primary" type="submit">Unlock</button>
+      <span class="hint">e-Aadhaar: first 4 letters of the name in capitals + birth year (SUBR1992) &ensp; e-PAN: date of birth DDMMYYYY</span></form></div>`;
+  if (j.state === 'error') return `<div class="note err">${esc(j.error)}</div>`;
+  return '';
+}
+function rowHtml(j) {
+  const done = j.state === 'done';
+  return `<div class="row" data-k="${j.key}">
+    <div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
+    <div class="c-type">${done ? chipHtml(typeOf(j)) : (j.state === 'working' || j.state === 'waiting' ? '<div class="skel line"></div>' : chipHtml(typeOf(j)))}</div>
+    <div class="c-doc">${done ? docHtml(j) : ''}</div>
+    <div class="c-ref">${refHtml(j)}</div>
+    <div class="c-prev">${done ? flipHtml(j) : (needsAction(j) ? '' : '<div class="skel thumb"></div>')}</div>
+    <div class="acts">${actsHtml(j)}</div>
+    ${extraHtml(j)}</div>`;
+}
+function cardHtml(j) {
+  const done = j.state === 'done';
+  return `<article class="gcard">
+    ${done ? flipHtml(j) : (needsAction(j) ? '' : '<div class="skel thumb"></div>')}
+    <div class="gbody"><div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
+      ${done ? `<div class="gmeta">${chipHtml(typeOf(j))}${docHtml(j)}</div><div class="gref">${refHtml(j)}</div>` : ''}
+      <div class="gacts acts">${actsHtml(j, true)}</div></div>
+    ${extraHtml(j)}</article>`;
+}
+
+function renderTabs() {
+  const counts = {}; jobs.forEach(j => { const t = typeOf(j); if (t) counts[t] = (counts[t] || 0) + 1; });
+  const attn = jobs.filter(needsAction).length;
+  const list = [['all', 'All', jobs.length], ...Object.keys(TYPE_INFO).filter(k => counts[k]).map(k => [k, TYPE_INFO[k].name, counts[k]])];
+  if (attn) list.push(['attention', 'Needs action', attn]);
+  if (!list.some(t => t[0] === tab)) tab = 'all';
+  $('#tabs').innerHTML = list.map(([k, n, c]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab === k}">${esc(n)}<span class="c">${c}</span></button>`).join('');
+  $('#tabs').hidden = !jobs.length;
+}
+function render() {
+  const done = jobs.filter(j => j.state === 'done').length, pending = jobs.filter(j => j.state === 'working' || j.state === 'waiting').length;
+  $('#stReady').textContent = done; $('#stSaved').textContent = jobs.filter(j => j.saved).length; $('#stAttn').textContent = jobs.filter(needsAction).length;
+  $('#count').textContent = jobs.length ? `${done} ready${pending ? `, ${pending} in progress` : ''}` : '';
+  document.querySelectorAll('.seg[aria-label="View"] button').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === view));
+  renderTabs();
+  const shown = visible();
+  $('#zipAll').disabled = $('#saveAll').disabled = !shown.some(j => j.state === 'done');
+  $('#clearAll').disabled = !jobs.some(j => j.state !== 'working' && j.state !== 'waiting');
+  $('#empty').hidden = jobs.length !== 0;
+
+  const a = document.activeElement, fk = a?.dataset?.key, fs = a?.dataset?.side, caret = a?.selectionStart;
+  const box = $('#results');
+  if (!jobs.length) box.innerHTML = '';
+  else if (!shown.length) box.innerHTML = `<div class="empty"><h3>Nothing matches</h3><p>No exports match the current filter${query ? ` and “${esc(query)}”` : ''}.</p></div>`;
+  else if (view === 'rows') box.innerHTML = `<div class="table" role="table"><div class="cols" role="row"><span>Holder</span><span class="c-type">Card</span><span class="c-doc">Document no.</span><span class="c-ref">Job ref</span><span class="c-prev">Preview</span><span style="text-align:right">Actions</span></div>${shown.map(rowHtml).join('')}</div>`;
+  else box.innerHTML = `<div class="grid">${shown.map(cardHtml).join('')}</div>`;
+  if (fk) { const el = box.querySelector(`input[data-key="${fk}"][data-side="${fs}"]`); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch {} } }
+  else { const pw = box.querySelector('input[data-pw]'); if (pw && !pw.value && document.activeElement === document.body) pw.focus(); }
+}
+
+/* ---------- events ---------- */
+const byKey = k => jobs.find(j => j.key === k);
+let lbJob = null;
+function openLightbox(j, side) {
+  lbJob = j;
+  $('#lbSides').innerHTML = j.sides.map(s => `<button data-s="${esc(s)}">${esc(s)}</button>`).join('');
+  document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s)); $('#lbTitle').textContent = `${j.details?.name || j.source}${j.ref ? ' · ' + j.ref : ''}`;
+  showLb(side || curSide(j)); $('#lightbox').classList.add('open');
+}
+function showLb(s) { $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
+  document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); }); }
+document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
+$('#lbDl').onclick = () => downloadOne(lbJob, $('#lbImg').dataset.side);
+
+$('#results').addEventListener('submit', e => {
+  const f = e.target.closest('form.lock'); if (!f) return; e.preventDefault();
+  const j = byKey(f.dataset.key), pw = f.querySelector('input').value; if (pw) queue = queue.then(() => processJob(j, j.file, pw));
+});
+$('#results').addEventListener('input', e => {
+  const i = e.target.closest('input[data-side]'); if (!i) return;
+  const j = byKey(i.dataset.key); j.names[i.dataset.side] = i.value; j.edited[i.dataset.side] = true;
+});
+$('#results').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const j = byKey(b.dataset.key); if (!j) return;
+  const act = b.dataset.act;
+  if (act !== 'zoom') e.stopPropagation();
+  if (act === 'flip') {
+    if (isSheet(j)) { const i = j.sides.indexOf(curSide(j)); j.side = j.sides[(i + 1) % j.sides.length]; }
+    else j.side = j.side === 'Back' ? 'Front' : 'Back';
+    render();
+  }
+  else if (act === 'zoom') openLightbox(j);
+  else if (act === 'both') downloadBoth(j);
+  else if (act === 'pdf') { const a = document.createElement('a'); a.href = `/api/pdf/${j.job}?name=${encodeURIComponent(baseName(j))}`; document.body.appendChild(a); a.click(); a.remove(); }
+  else if (act === 'save') saveItems(itemsOf(j));
+  else if (act === 'dl') downloadOne(j, b.dataset.side);
+  else if (act === 'zip') downloadZip(itemsOf(j), baseName(j));
+  else if (act === 'more') { j.open = !j.open; render(); }
+  else if (act === 'remove') { jobs = jobs.filter(x => x !== j); render(); }
+  else if (act === 'plugin') { const pa = CPS.rowActions.find(a => a.id === b.dataset.pa); if (pa) try { pa.run(CPS.jobView(j)); } catch (err) { toast(err.message, {error: true}); } }
+  else if (act === 'rcup' || act === 'rcdown') {
+    const row = b.closest('.rc-row'), sib = act === 'rcup' ? row.previousElementSibling : row.nextElementSibling;
+    if (!sib || sib.querySelector('.rc-mv') === null) return;           // head of family stays first
+    act === 'rcup' ? sib.before(row) : sib.after(row);
+    numberRcRows(row.parentElement);
+  }
+  else if (act === 'rcsave') {
+    const box = b.closest('.rc-edit');
+    const rows = [...box.querySelectorAll('.rc-row')].map(r => ({i: +r.dataset.i,
+      name: r.querySelector('[data-rcname]').value, dob: (r.querySelector('[data-rcdob]') || {}).value || ''}));
+    const addr = box.querySelector('input[data-rcaddr]').value;
+    const bad = rows.find(r => r.dob && !/^\d{4}-\d{2}-\d{2}$/.test(r.dob.trim()));
+    if (bad) { toast('Birth date must look like 2010-04-18', {error: true}); return; }
+    b.disabled = true; b.textContent = 'Updating…';
+    try {
+      await api(`/api/ration/${j.job}`, {members: rows, permanent_address: addr, head_name: rows[0] ? rows[0].name : ''});
+      j.ration.members = rows.map(r => { const m = {...j.ration.members[r.i], name: r.name};
+        if (r.dob.trim()) m.dob_age = r.dob.trim() + '/' + (m.dob_age || '/').split('/').slice(1).join('/'); return m; });
+      j.ration.permanent_address = addr;
+      j.v = (j.v || 0) + 1; j.saved = false; toast('Card updated'); render();
+    } catch (err) { toast(err.message, {error: true}); b.disabled = false; b.textContent = 'Update card'; }
+  }
+  else if (act === 'copyref') { try { await navigator.clipboard.writeText(j.ref); toast(`Copied ${j.ref}`); } catch { toast(j.ref); } }
+});
+
+render();
+loadSettings().then(render).then(loadPlugins).then(route).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
+</script>
+</body>
+</html>

@@ -47,16 +47,33 @@
   CPS.registerSettingsPanel('office_print', async el => {
     el.innerHTML = '<span class="status"><span class="spin"></span>Checking printers…</span>';
     let s; try { s = await api(BASE + '/status'); } catch (e) { el.innerHTML = `<span class="plug-err">${esc(e.message)}</span>`; return; }
-    if (!s.service.ok) { el.innerHTML = `<span class="plug-err">${esc(s.service.error)}</span>`; return; }
-    el.innerHTML = `<div><label class="t" for="opsP" style="font-weight:500">Default printer</label>
-        <select class="text" id="opsP">${s.service.printers.map(p => `<option ${p === s.printer ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
-      <div class="rowf" style="gap:18px;align-items:center"><label class="hint" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="opsC" ${s.color ? 'checked' : ''}> Colour by default</label>
-        <label class="hint">Resolution <select class="text" id="opsD" style="width:auto;height:30px"><option ${s.dpi === 600 ? 'selected' : ''}>600</option><option ${s.dpi === 300 ? 'selected' : ''}>300</option></select> dpi</label></div>
-      <div class="rowf" style="gap:8px;flex-wrap:wrap"><button class="btn" id="opsT">${ICON}Print scale test page</button>
-        <a class="btn quiet" href="${BASE}/test.pdf" download>Download test PDF</a></div>
-      <p class="hint" style="margin:0">Check with a ruler: the square must be exactly 100&nbsp;mm and a real card must fit the card outline.</p>`;
-    const save = async () => { try { await api(BASE + '/config', {printer: el.querySelector('#opsP').value, color: el.querySelector('#opsC').checked, dpi: el.querySelector('#opsD').value}); toast('Saved'); } catch (e) { toast(e.message, {error: true}); } };
+    if (!s.service.ok) {
+      el.innerHTML = `<div class="pnotice err">${esc(s.service.error)}</div>
+        <section class="scard pcard"><header><h4>Scale test page</h4><p>You can still download the test PDF and print it from another program at 100%.</p></header>
+          <div class="pbody"><a class="btn" href="${BASE}/test.pdf" download>Download test PDF</a></div></section>`;
+      return;
+    }
+    el.innerHTML = `<section class="scard pcard">
+        <header><h4>Printer</h4><p>Office printer for A4 sheets, e.g. the Canon imageRUNNER.</p></header>
+        <div class="pbody"><select class="text" id="opsP">${s.service.printers.map(p => `<option ${p === s.printer ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+      </section>
+      <section class="scard pcard">
+        <header><h4>Defaults</h4><p>Used when you click Print on an A4 sheet. Changes save automatically.</p></header>
+        <div class="pbody pstack">
+          <div class="sw"><div><b>Colour</b><small>Off prints in black &amp; white.</small></div><input type="checkbox" id="opsC" ${s.color ? 'checked' : ''}></div>
+          <div class="sw"><div><b>Resolution</b><small>600 dpi is sharper; 300 dpi prints faster.</small></div>
+            <div class="seg" id="opsD"><button data-v="600" aria-pressed="${s.dpi === 600}">600 dpi</button><button data-v="300" aria-pressed="${s.dpi !== 600}">300 dpi</button></div></div>
+        </div>
+      </section>
+      <section class="scard pcard">
+        <header><h4>Scale test page</h4><p>Checks the printer keeps 100% size. Measure with a ruler: the square must be exactly 100&nbsp;mm and a real card must fit the card outline.</p></header>
+        <div class="pbody"><div class="rowf" style="gap:8px;flex-wrap:wrap"><button class="btn" id="opsT">${ICON}Print scale test page</button>
+          <a class="btn quiet" href="${BASE}/test.pdf" download>Download test PDF</a></div></div>
+      </section>`;
+    const dpi = () => el.querySelector('#opsD button[aria-pressed="true"]').dataset.v;
+    const save = async () => { try { await api(BASE + '/config', {printer: el.querySelector('#opsP').value, color: el.querySelector('#opsC').checked, dpi: dpi()}); toast('Saved'); } catch (e) { toast(e.message, {error: true}); } };
     el.querySelectorAll('select,input').forEach(x => x.onchange = save);
+    el.querySelectorAll('#opsD button').forEach(b => b.onclick = () => { el.querySelectorAll('#opsD button').forEach(x => x.setAttribute('aria-pressed', x === b)); save(); });
     el.querySelector('#opsT').onclick = async ev => {
       const b = ev.currentTarget; b.disabled = true;
       try { const r = await api(BASE + '/test', {printer: el.querySelector('#opsP').value}); toast(`Scale test sent to ${r.printer}`); }

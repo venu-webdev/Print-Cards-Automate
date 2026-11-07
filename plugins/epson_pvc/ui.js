@@ -78,24 +78,39 @@
     const err = s.service.ok ? '' : s.service.error;
     const printers = s.service.printers || [];
     const auto = s.mode !== 'custom';
-    const num = (id, label, v, step, unit) => `<div><label class="t" for="${id}" style="font-weight:500">${label}</label>
-        <div class="rowf"><input class="text mono" id="${id}" type="number" step="${step}" value="${v}" style="width:110px"><span class="hint" style="align-self:center">${unit}</span></div></div>`;
-    el.innerHTML = `${err ? `<span class="plug-err">${esc(err)}</span>` : ''}
-      <div><label class="t" for="epPrinter" style="font-weight:500">Printer</label>
-        <select class="text" id="epPrinter" ${printers.length ? '' : 'disabled'}>${printers.map(p => `<option ${p === s.printer ? 'selected' : ''}>${esc(p)}</option>`).join('') || '<option>No printers found</option>'}</select></div>
-      <div><span class="t" style="font-weight:500">Card settings</span>
-        <div class="seg" id="epMode"><button data-v="auto" aria-pressed="${auto}">Automatic (Photo+ compatible)</button><button data-v="custom" aria-pressed="${!auto}">Custom</button></div></div>
-      <div id="epModeBody"></div>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
-        ${num('epOx', 'Move right', s.offset_x_mm, 0.1, 'mm')}${num('epOy', 'Move down', s.offset_y_mm, 0.1, 'mm')}
-        ${num('epW', 'Card width', s.card_w_mm, 0.1, 'mm')}${num('epH', 'Card height', s.card_h_mm, 0.1, 'mm')}
-        ${num('epSc', 'Scale', s.scale_pct, 0.1, '%')}
-        <div><label class="t" for="epRotSel" style="font-weight:500">Rotation</label>
-          <select class="text" id="epRotSel">${[90, 270, 0, 180].map(r => `<option value="${r}" ${+s.rotation === r ? 'selected' : ''}>${r === 90 ? '90° (portrait, like Photo+)' : r === 270 ? '270° (portrait, other way)' : r + '°'}</option>`).join('')}</select></div></div>
-      <div class="rowf" style="flex-wrap:wrap"><button class="btn" id="epSave">Save</button>
-        <button class="btn" id="epTest" ${s.printer && !err ? '' : 'disabled'}>${ICON}Print alignment test</button>
-        <a class="btn quiet" href="${BASE}/test.png">Test image</a></div>
-      <p class="hint" style="margin:0">Print the test on a blank card. If the outline is off, nudge it with “Move right / down” (negative = left / up). If the TOP EDGE arrow is upside down, switch the rotation to 270°.</p>`;
+    const num = (id, label, v, step, unit, help) => `<div class="pfield"><label for="${id}">${label}</label>
+        <div class="punit"><input class="text mono" id="${id}" type="number" step="${step}" value="${v}"><span>${unit}</span></div>${help ? `<small>${help}</small>` : ''}</div>`;
+    const ready = s.printer && !err;
+    el.innerHTML = `${err ? `<div class="pnotice err">${esc(err)}</div>` : ''}
+      <section class="scard pcard">
+        <header><h4>Printer</h4><p>The Epson L8050 (or another Epson with a Disc/ID Card Tray).</p>
+          <span class="chip ${ready ? 'on' : ''}">${ready ? 'Ready' : 'Not connected'}</span></header>
+        <div class="pbody"><select class="text" id="epPrinter" ${printers.length ? '' : 'disabled'}>${printers.map(p => `<option ${p === s.printer ? 'selected' : ''}>${esc(p)}</option>`).join('') || '<option>No printers found</option>'}</select></div>
+      </section>
+      <section class="scard pcard">
+        <header><h4>Card settings</h4><p>Tray, paper type and quality sent to the Epson driver.</p></header>
+        <div class="pbody">
+          <div class="seg" id="epMode"><button data-v="auto" aria-pressed="${auto}">Automatic (Photo+ compatible)</button><button data-v="custom" aria-pressed="${!auto}">Custom</button></div>
+          <div id="epModeBody" class="pstack"></div>
+        </div>
+      </section>
+      <section class="scard pcard">
+        <header><h4>Position &amp; size</h4><p>Fine-tune after an alignment test. Negative values move left / up.</p></header>
+        <div class="pbody"><div class="pgrid">
+          ${num('epOx', 'Move right', s.offset_x_mm, 0.1, 'mm')}${num('epOy', 'Move down', s.offset_y_mm, 0.1, 'mm')}
+          ${num('epW', 'Card width', s.card_w_mm, 0.1, 'mm', 'Standard card: 85.6')}${num('epH', 'Card height', s.card_h_mm, 0.1, 'mm', 'Standard card: 54')}
+          ${num('epSc', 'Scale', s.scale_pct, 0.1, '%')}
+          <div class="pfield"><label for="epRotSel">Rotation</label>
+            <select class="text" id="epRotSel">${[90, 270, 0, 180].map(r => `<option value="${r}" ${+s.rotation === r ? 'selected' : ''}>${r === 90 ? '90° (portrait, like Photo+)' : r === 270 ? '270° (portrait, other way)' : r + '°'}</option>`).join('')}</select></div>
+        </div></div>
+        <footer><button class="btn primary" id="epSave">Save printer settings</button></footer>
+      </section>
+      <section class="scard pcard">
+        <header><h4>Alignment test</h4><p>Put a <b>blank card</b> in the tray. If the printed outline is off, adjust <i>Position &amp; size</i>; if the TOP EDGE arrow is upside down, choose rotation 270°.</p></header>
+        <div class="pbody"><div class="rowf" style="flex-wrap:wrap">
+          <button class="btn" id="epTest" ${ready ? '' : 'disabled'}>${ICON}Print alignment test</button>
+          <a class="btn quiet" href="${BASE}/test.png">Download test image</a></div></div>
+      </section>`;
 
     const body = $('#epModeBody');
     const drawMode = async () => {
