@@ -1,0 +1,9 @@
+{
+  "id": "office_print",
+  "name": "A4 office printing",
+  "description": "Print A4 sheets (Aadhaar laminated: Full / Both / Small) at exactly 100% size, in colour, to any Windows printer such as a Canon imageRUNNER iR 5500.",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "ui": "ui.js",
+  "enabled_by_default": true
+}

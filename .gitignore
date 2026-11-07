@@ -1,0 +1,23 @@
+# --- customer documents: NEVER commit -------------------------------------------
+raw/*
+export/*
+!raw/.gitkeep
+!export/.gitkeep
+Screenshots/
+
+# reference cards that contain a real person's data (only needed to rebuild templates)
+templates/*_reference.png
+templates/*.local.json
+
+# big installers - download from Epson instead
+Printer-Resources/
+
+# python / editor junk
+__pycache__/
+*.pyc
+.venv/
+venv/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

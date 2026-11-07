@@ -1,0 +1,9 @@
+{
+  "id": "epson_pvc",
+  "name": "Epson PVC card printing",
+  "description": "Print exports straight onto PVC ID cards with an Epson L8050 (or any Epson with a Disc/ID Card Tray) through its Windows driver. Adds a Print button, a one-time card setup, alignment test and card-size PDF.",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "ui": "ui.js",
+  "enabled_by_default": true
+}
