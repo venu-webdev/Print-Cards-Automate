@@ -253,7 +253,7 @@ def pan_card_images(doc):
     return out
 
 
-HOLOGRAM_IMG = Path(__file__).resolve().parent / "templates" / "pan_hologram.png"   # cut from a scanned PAN card
+HOLOGRAM_IMG = Path(__file__).resolve().parent / "templates" / "pan_hologram.png"   # cut from a scanned PAN card (600 dpi, corner r 2.0 mm)
 
 
 def apply_hologram(img):
@@ -277,10 +277,21 @@ def apply_hologram(img):
     if found is None:                    # layouts without the 'HOLOGRAM' box (older e-PAN) stay as they are
         return img
     cx, cy, size = found
+    # 1) erase the whole grey 'HOLOGRAM' square (its corners would show outside the rounded sticker)
+    x, y, w, h, _ = st[i]
+    pad = 9                                           # the box has a ~6 px soft edge around it
+    hole = np.zeros((H, W), np.uint8)
+    hole[max(0, y - pad):y + h + pad, max(0, x - pad):x + w + pad] = 255
+    src = np.ascontiguousarray(np.asarray(img.convert("RGB")))
+    filled = cv2.inpaint(src, hole, 12, cv2.INPAINT_TELEA)
+    feather = cv2.GaussianBlur(hole.astype(np.float32) / 255, (0, 0), 2.0)[..., None]   # no visible seam
+    base = (src * (1 - feather) + filled * feather).round().astype(np.uint8)
+    # 2) the sticker (cut from a real card with its own rounded corners), real size 17.0 mm
+    stk = Image.open(HOLOGRAM_IMG).convert("RGBA")
     s = round(size)
-    sticker = Image.open(HOLOGRAM_IMG).convert("RGBA").resize((s, s), Image.LANCZOS)
-    out = img.convert("RGBA")
-    out.alpha_composite(sticker, (round(cx - s / 2), round(cy - s / 2)))
+    sticker = stk.resize((s, round(s * stk.height / stk.width)), Image.LANCZOS)
+    out = Image.fromarray(base).convert("RGBA")
+    out.alpha_composite(sticker, (round(cx - sticker.width / 2), round(cy - sticker.height / 2)))
     print(f"    PAN Back: hologram sticker {s}px at ({cx:.0f}, {cy:.0f})")
     return out.convert("RGB")
 
