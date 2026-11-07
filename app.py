@@ -109,6 +109,20 @@ def index():
     return send_file(ROOT / "web" / "index.html")
 
 
+SITE_PAGES = {"home": "home.html", "login": "login.html", "register": "register.html"}
+
+
+@app.get("/<any(home, login, register):page>")
+def site_page(page):
+    """Marketing + account pages (design preview only - the tool itself stays open at /)."""
+    return send_file(ROOT / "web" / "site" / SITE_PAGES[page])
+
+
+@app.get("/site/<any('site.css', 'site.js'):name>")
+def site_asset(name):
+    return send_file(ROOT / "web" / "site" / name)
+
+
 @app.get("/img/<path:name>")
 def img(name):
     """Logos used by the card type tiles (web/img)."""
