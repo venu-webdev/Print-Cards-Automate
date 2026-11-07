@@ -1,8 +1,9 @@
 """A4 office printing (e.g. Canon iR 5500) - Card Print Studio plugin. Delete the folder to remove."""
+import io
 import threading
 
 import pymupdf
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, request, send_file
 from PIL import Image
 
 try:
@@ -82,6 +83,58 @@ def print_pdf(printer, pdf_bytes, pages, copies, color, max_dpi, doc_name, outpu
         dc.DeleteDC()
 
 
+MM = 72 / 25.4
+
+
+def scale_test_pdf():
+    """A4 test page: if the printer keeps 100% scale, every length printed on it measures true."""
+    doc = pymupdf.open()
+    pg = doc.new_page(width=210 * MM, height=297 * MM)
+    k = (0, 0, 0)
+
+    def line(x0, y0, x1, y1, w=0.25):
+        pg.draw_line((x0 * MM, y0 * MM), (x1 * MM, y1 * MM), color=k, width=w * MM)
+
+    def text(x, y, t, size=9):
+        pg.insert_text((x * MM, y * MM), t, fontsize=size, color=k)
+
+    text(20, 22, "Card Print Studio - A4 scale test (must print at 100%)", 13)
+    text(20, 29, "Measure with a ruler. Every number is the true length on paper.", 9)
+    # 100 x 100 mm square
+    pg.draw_rect(pymupdf.Rect(20 * MM, 40 * MM, 120 * MM, 140 * MM), color=k, width=0.3 * MM)
+    text(22, 46, "100 x 100 mm square")
+    # card outline (85.6 x 54 mm, ISO ID-1) with 3.18 mm corners
+    pg.draw_rect(pymupdf.Rect(20 * MM, 155 * MM, 105.6 * MM, 209 * MM), color=k, width=0.3 * MM, radius=3.18 / 54)
+    text(23, 162, "Card size 85.6 x 54 mm")
+    text(23, 168, "A real PVC / ID card should fit")
+    text(23, 173, "exactly on this outline.")
+    # horizontal ruler 150 mm
+    y = 230
+    line(20, y, 170, y, 0.3)
+    for i in range(151):
+        h = 5 if i % 10 == 0 else (3.5 if i % 5 == 0 else 2)
+        line(20 + i, y, 20 + i, y - h, 0.15)
+        if i % 10 == 0:
+            text(20 + i - (1 if i < 10 else 2), y - 6.5, str(i), 7)
+    text(20, y + 6, "150 mm ruler (0 to 150)")
+    # vertical ruler 250 mm along the right edge
+    x = 190
+    line(x, 25, x, 275, 0.3)
+    for i in range(251):
+        w = 5 if i % 10 == 0 else (3.5 if i % 5 == 0 else 2)
+        line(x, 25 + i, x - w, 25 + i, 0.15)
+        if i % 50 == 0:
+            text(x + 1.5, 25 + i + 1.2, str(i), 7)
+    text(135, 280, "250 mm ruler (top to bottom)", 8)
+    # corner marks 5 mm from each paper edge
+    for cx, cy, dx, dy in ((5, 5, 1, 1), (205, 5, -1, 1), (5, 292, 1, -1), (205, 292, -1, -1)):
+        line(cx, cy, cx + 8 * dx, cy, 0.3)
+        line(cx, cy, cx, cy + 8 * dy, 0.3)
+    text(20, 250, "Corner marks are 5 mm in from each paper edge (missing marks = printer's margin).", 8)
+    text(20, 256, "If the square is not 100 mm: turn OFF 'Fit to page' / scaling in the printer settings.", 8)
+    return doc.tobytes()
+
+
 def register(host):
     bp = Blueprint("office_print", __name__, url_prefix="/api/plugins/office_print")
 
@@ -135,5 +188,25 @@ def register(host):
         except Exception as e:
             return jsonify({"error": f"Printing failed: {e}"}), 500
         return jsonify({"ok": True, "printed": want, "copies": copies, "printer": printer})
+
+    @bp.get("/test.pdf")
+    def test_pdf():
+        return send_file(io.BytesIO(scale_test_pdf()), mimetype="application/pdf",
+                         as_attachment=True, download_name="A4-scale-test.pdf")
+
+    @bp.post("/test")
+    def test_print():
+        b, c = request.get_json(force=True) or {}, cfg()
+        printer = b.get("printer") or c.get("printer")
+        if not printer:
+            return jsonify({"error": "Choose a printer first"}), 400
+        try:
+            with LOCK:
+                print_pdf(printer, scale_test_pdf(), [0], 1, False, c.get("dpi", 600), "A4 scale test")
+        except pywintypes.error as e:
+            return jsonify({"error": f"Printing failed: {e.strerror}"}), 500
+        except Exception as e:
+            return jsonify({"error": f"Printing failed: {e}"}), 500
+        return jsonify({"ok": True, "printer": printer})
 
     host.app.register_blueprint(bp)

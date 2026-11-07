@@ -51,8 +51,17 @@
     el.innerHTML = `<div><label class="t" for="opsP" style="font-weight:500">Default printer</label>
         <select class="text" id="opsP">${s.service.printers.map(p => `<option ${p === s.printer ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
       <div class="rowf" style="gap:18px;align-items:center"><label class="hint" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="opsC" ${s.color ? 'checked' : ''}> Colour by default</label>
-        <label class="hint">Resolution <select class="text" id="opsD" style="width:auto;height:30px"><option ${s.dpi === 600 ? 'selected' : ''}>600</option><option ${s.dpi === 300 ? 'selected' : ''}>300</option></select> dpi</label></div>`;
+        <label class="hint">Resolution <select class="text" id="opsD" style="width:auto;height:30px"><option ${s.dpi === 600 ? 'selected' : ''}>600</option><option ${s.dpi === 300 ? 'selected' : ''}>300</option></select> dpi</label></div>
+      <div class="rowf" style="gap:8px;flex-wrap:wrap"><button class="btn" id="opsT">${ICON}Print scale test page</button>
+        <a class="btn quiet" href="${BASE}/test.pdf" download>Download test PDF</a></div>
+      <p class="hint" style="margin:0">Check with a ruler: the square must be exactly 100&nbsp;mm and a real card must fit the card outline.</p>`;
     const save = async () => { try { await api(BASE + '/config', {printer: el.querySelector('#opsP').value, color: el.querySelector('#opsC').checked, dpi: el.querySelector('#opsD').value}); toast('Saved'); } catch (e) { toast(e.message, {error: true}); } };
     el.querySelectorAll('select,input').forEach(x => x.onchange = save);
+    el.querySelector('#opsT').onclick = async ev => {
+      const b = ev.currentTarget; b.disabled = true;
+      try { const r = await api(BASE + '/test', {printer: el.querySelector('#opsP').value}); toast(`Scale test sent to ${r.printer}`); }
+      catch (e) { toast(e.message, {error: true}); }
+      b.disabled = false;
+    };
   });
 })();
