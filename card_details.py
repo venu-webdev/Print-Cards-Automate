@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pymupdf
 
-TYPE_LABEL = {"dl": "DL", "voter": "VOTER", "aadhaar": "AADHAR_PVC", "aadhaar_lam": "AADHAR_LAM", "pan": "PAN", "ration": "RATION_CARD", "rc": "RC", "abha": "ABHA"}
-ID_LABEL = {"dl": "DL No", "voter": "EPIC No", "aadhaar": "Aadhaar", "aadhaar_lam": "Aadhaar", "pan": "PAN", "ration": "RC No", "rc": "Regn No", "abha": "ABHA No"}
+TYPE_LABEL = {"dl": "DL", "voter": "VOTER", "aadhaar": "AADHAR_PVC", "aadhaar_lam": "AADHAR_LAM", "pan": "PAN", "ration": "RATION_CARD", "rc": "RC", "abha": "ABHA", "pmjay": "AYUSHMAN"}
+ID_LABEL = {"dl": "DL No", "voter": "EPIC No", "aadhaar": "Aadhaar", "aadhaar_lam": "Aadhaar", "pan": "PAN", "ration": "RC No", "rc": "Regn No", "abha": "ABHA No", "pmjay": "PM-JAY ID"}
 
 DL_RE = re.compile(r"\b([A-Z]{2}\d{2}\s?\d{11,12})\b")
 PAN_RE = re.compile(r"\b([A-Z]{5}\d{4}[A-Z])\b")
@@ -115,6 +115,10 @@ def read(doc, card_type, filename=None, layout=None):
         elif card_type == "abha":
             import abha_card
             name, ident = abha_card.details(doc)
+            name = _clean_name(name)
+        elif card_type == "pmjay":
+            import pmjay_card
+            name, ident = pmjay_card.details(doc)
             name = _clean_name(name)
         elif card_type == "voter":
             # e-EPIC PDFs are scanned pictures (no text) - use the EPIC no. in the file name

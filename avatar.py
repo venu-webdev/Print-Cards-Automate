@@ -75,6 +75,8 @@ def photo_box(doc, card_type, card_image):
     import cv2
     if card_type in ("rc", "aadhaar_lam") or card_image is None:
         return None
+    if card_type == "pmjay" and card_image.info.get("cps_photo_box"):
+        return list(card_image.info["cps_photo_box"])         # placed by pmjay_card itself: exact (+ a few px)
     card = np.asarray(card_image.convert("L"))
     H, W = card.shape
     if card_type == "voter":
@@ -85,7 +87,11 @@ def photo_box(doc, card_type, card_image):
         ys, xs = np.nonzero(mask)
         return [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1]
     try:
-        photo = _from_pdf(doc)
+        if card_type == "pmjay":
+            import pmjay_card
+            photo = pmjay_card.photo(doc)
+        else:
+            photo = _from_pdf(doc)
     except Exception:
         photo = None
     if photo is None:
@@ -123,6 +129,9 @@ def holder_photo(doc, card_type, front_image=None):
             if mask is not None:
                 ys, xs = np.nonzero(mask)
                 img = Image.fromarray(arr[ys.min():ys.max() + 1, xs.min():xs.max() + 1])
+        elif card_type == "pmjay":                   # its photo is stored sideways in the PDF
+            import pmjay_card
+            img = pmjay_card.photo(doc)
         else:
             img = _from_pdf(doc)
     except Exception as e:

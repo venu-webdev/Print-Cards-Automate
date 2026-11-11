@@ -183,17 +183,6 @@ def _transparent_ink(rgb):
     return np.dstack([np.clip(col, 0, 255), alpha * 255]).round().astype(np.uint8)
 
 
-# The shop's wish (marked on a card): the signature sits in a box right above the printed
-# "हस्ताक्षर / Signature" label - the box is SIGN_BOX_W x the label's width, SIGN_BOX_H of the card height,
-# its bottom SIGNATURE_GAP_PT above the label. The signature is trimmed to its ink, fitted into the box
-# (shape kept, never enlarged), centred on the label, and its strokes made SIGNATURE_SOLID x stronger.
-SIGN_BOX_W = 1.7
-SIGN_BOX_H = 0.078
-SIGNATURE_GAP_PT = 1.7         # 0.6 mm between the signature and the label
-SIGNATURE_SOLID = 3.0          # faint e-PAN signatures (ink ~40 % opaque) -> solid
-SIGNATURE_SCALE = 0.7          # only if the label is not found: 70 % size at the old spot
-
-
 def _label_box(page, raw, card_rect):
     """The printed 'हस्ताक्षर / Signature' label under the signature spot -> Rect (pt) or None.
     It is part of the card artwork, so it is found by its dark lettering in a render (the old
@@ -230,12 +219,100 @@ def _label_box(page, raw, card_rect):
     return pymupdf.Rect(clip.x0 + c0 * k, clip.y0 + top * k, clip.x0 + (c1 + 1) * k, clip.y0 + (bottom + 1) * k)
 
 
-def clear_signature_boxes(doc, page, card_rect):
-    """Signature / thumb-impression images on the card: remove their white box and draw them at
-    SIGNATURE_SCALE of their size, moved by SIGNATURE_SHIFT_X. The original image is blanked and a
-    transparent copy is placed on the page at the new spot (vector page, so it stays sharp and
-    nothing gets clipped)."""
-    done = 0
+# ------------------------------------------------------------------ PAN front "template"
+# The front is built from layers so the shop can fine-tune it per card later (exports list -> Front ->
+# "PAN front" editor) without the PDF:
+#   base      the card with the holder's name, father's name and signature taken off
+#   name      / father   alpha masks of those two printed values (black Helvetica text)
+#   sign      the signature ink (RGBA, white box removed), drawn into SIGN_BOX
+# compose_front() puts them together with the settings below.
+PAN_FRONT_DEFAULTS = {
+    "name_gap": 6,          # px (1016 px card, 0.085 mm each) the name moves DOWN, away from "नाम / Name"
+    "father_gap": 6,        # same for the father's name under "पिता का नाम / Father's Name"
+    "sign_size": 100,       # % of "fits the box" (100 = as big as fits, shape kept)
+    "sign_x": 0, "sign_y": 0,   # px, move the signature (right / down are +)
+    "sign_strength": 300,   # % ink opacity (e-PAN signatures are faint, ~40 % -> x3 = solid)
+    "sign_contrast": 0,     # -50..100: crisper strokes (soft edges -> solid or clear)
+    "sign_dark": 0,         # 0..100: ink colour towards black
+    "sign_color": "original",   # original | black | blue
+}
+PAN_FRONT_RANGE = {"name_gap": (-10, 40), "father_gap": (-10, 40), "sign_size": (30, 200), "sign_x": (-150, 150),
+                   "sign_y": (-60, 60), "sign_strength": (50, 600), "sign_contrast": (-50, 100), "sign_dark": (0, 100)}
+SIGN_COLORS = {"black": (20, 20, 24), "blue": (22, 38, 125)}
+# The box the shop marked on a card (references/pan-changes-1.png): 350 x 36 px on the 1016 x 638 card,
+# just above the printed "हस्ताक्षर / Signature" label. Long signatures fill its width, short ones its
+# height; the signature is centred in it and never stretched.
+SIGN_BOX = (284, 545, 634, 581)                 # where it is on the reference card (label at SIGN_LABEL_REF)
+SIGN_LABEL_REF = (332, 590, 523, 613)          # the printed label found on that same card (px)
+
+
+def front_params(p=None):
+    """Clean settings: every key present, numbers clamped, colour known."""
+    out = dict(PAN_FRONT_DEFAULTS)
+    for k, v in (p or {}).items():
+        if k in PAN_FRONT_RANGE:
+            lo, hi = PAN_FRONT_RANGE[k]
+            try:
+                out[k] = int(round(max(lo, min(hi, float(v)))))
+            except (TypeError, ValueError):
+                pass
+        elif k == "sign_color" and v in ("original", *SIGN_COLORS):
+            out[k] = v
+    return out
+
+
+def _sign_box(label_px):
+    """SIGN_BOX moved along with the printed label (other e-PAN layouts sit a little differently)."""
+    if label_px is None or SIGN_LABEL_REF is None:
+        return list(SIGN_BOX)
+    dx = (label_px[0] + label_px[2]) / 2 - (SIGN_LABEL_REF[0] + SIGN_LABEL_REF[2]) / 2
+    dy = label_px[1] - SIGN_LABEL_REF[1]
+    return [round(SIGN_BOX[0] + dx), round(SIGN_BOX[1] + dy), round(SIGN_BOX[2] + dx), round(SIGN_BOX[3] + dy)]
+
+
+def compose_front(base, layers, p=None):
+    """base (RGB card) + layers {"name", "father": L masks, "sign": RGBA or None, "box", "aspect"} -> RGB card."""
+    p = front_params(p)
+    out = np.asarray(base.convert("RGB")).astype(np.float32)
+    H, W = out.shape[:2]
+    for key, gap in (("name", p["name_gap"]), ("father", p["father_gap"])):
+        m = layers.get(key)
+        if m is None:
+            continue
+        a = np.zeros((H, W), np.float32)
+        src = np.asarray(m, np.float32) / 255
+        y0, y1 = max(0, gap), min(H, H + gap)
+        a[y0:y1] = src[y0 - gap:y1 - gap]
+        out *= 1 - a[..., None]                                   # black text
+    sign = layers.get("sign")
+    if sign is not None:
+        x0, y0, x1, y1 = layers["box"]
+        bw, bh = x1 - x0, y1 - y0
+        asp = layers.get("aspect") or sign.width / sign.height   # shape as the e-PAN showed it
+        k = min(bw / asp, bh) * p["sign_size"] / 100              # height that fits the box, shape kept
+        sh, sw = max(2, round(k)), max(2, round(k * asp))
+        s = np.asarray(sign.convert("RGBA").resize((sw, sh), Image.LANCZOS)).astype(np.float32)
+        rgb, al = s[..., :3], s[..., 3] / 255
+        al = np.clip(al * p["sign_strength"] / 100, 0, 1)
+        if p["sign_contrast"]:
+            al = np.clip((al - 0.5) * (1 + p["sign_contrast"] / 50) + 0.5, 0, 1) * (al > 0.02)
+        if p["sign_color"] in SIGN_COLORS:
+            rgb = np.broadcast_to(np.array(SIGN_COLORS[p["sign_color"]], np.float32), rgb.shape)
+        rgb = rgb * (1 - p["sign_dark"] / 100)
+        cx, cy = (x0 + x1) / 2 + p["sign_x"], (y0 + y1) / 2 + p["sign_y"]
+        px, py = round(cx - sw / 2), round(cy - sh / 2)
+        # clip to the card
+        ax0, ay0, ax1, ay1 = max(0, px), max(0, py), min(W, px + sw), min(H, py + sh)
+        if ax1 > ax0 and ay1 > ay0:
+            a = al[ay0 - py:ay1 - py, ax0 - px:ax1 - px, None]
+            region = out[ay0:ay1, ax0:ax1]
+            out[ay0:ay1, ax0:ax1] = region * (1 - a) + rgb[ay0 - py:ay1 - py, ax0 - px:ax1 - px] * a
+    return Image.fromarray(np.clip(out, 0, 255).round().astype(np.uint8))
+
+
+def take_signature(doc, page, card_rect):
+    """Blank the signature / thumb-impression image on the card -> (ink RGBA Image trimmed to the ink,
+    aspect as the e-PAN draws it, its rect on the page) or None."""
     for img in page.get_images(full=True):
         xref = img[0]
         for raw in page.get_image_rects(xref):            # the same image can also be in the letter part
@@ -250,33 +327,71 @@ def clear_signature_boxes(doc, page, card_rect):
             if pix.alpha:
                 pix = pymupdf.Pixmap(pix, 0)
             rgb = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3)
-            rgba = _transparent_ink(rgb)                            # raw = its spot ON THE CARD (unrotated)
-            rgba[..., 3] = np.clip(rgba[..., 3].astype(np.float32) * SIGNATURE_SOLID, 0, 255).astype(np.uint8)
-            blank = np.zeros((pix.height, pix.width, 4), np.uint8)  # the old spot becomes empty
+            rgba = _transparent_ink(rgb)
+            blank = np.zeros((pix.height, pix.width, 4), np.uint8)
             page.replace_image(xref, pixmap=pymupdf.Pixmap(pymupdf.csRGB, pix.width, pix.height, blank.tobytes(), True))
-            ys, xs = np.nonzero(rgba[..., 3] > 25)                  # trim to the ink
+            ys, xs = np.nonzero(rgba[..., 3] > 8)                   # trim to the ink
             if not len(xs):
-                break
+                return None
             ink = np.ascontiguousarray(rgba[max(0, ys.min() - 1):ys.max() + 2, max(0, xs.min() - 1):xs.max() + 2])
             ih, iw = ink.shape[:2]
-            # size of the ink as it appeared on the e-PAN (the PDF draws the image stretched: keep that look)
-            dw, dh = iw * raw.width / pix.width, ih * raw.height / pix.height
-            label = _label_box(page, raw, card_rect)
-            if label is not None:
-                bw, bh = label.width * SIGN_BOX_W, card_rect.height * SIGN_BOX_H
-                s = min(1.0, bw / dw, bh / dh)                       # fit the box, shape kept, never enlarged
-                w, h = dw * s, dh * s
-                cx, y1 = (label.x0 + label.x1) / 2, label.y0 - SIGNATURE_GAP_PT
-                rect = pymupdf.Rect(cx - w / 2, y1 - h, cx + w / 2, y1)
-            else:                                                    # label not found: smaller, same spot
-                w, h = dw * SIGNATURE_SCALE, dh * SIGNATURE_SCALE
-                cx, cy = (raw.x0 + raw.x1) / 2, (raw.y0 + raw.y1) / 2
-                rect = pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-            page.insert_image(rect, keep_proportion=False,
-                              pixmap=pymupdf.Pixmap(pymupdf.csRGB, iw, ih, ink.tobytes(), True))
-            done += 1
-            break
-    return done
+            dw, dh = iw * raw.width / pix.width, ih * raw.height / pix.height   # PDF draws it stretched: keep that
+            return Image.fromarray(ink, "RGBA"), dw / dh, raw
+    return None
+
+
+def _value_spans(page, card_rect):
+    """The printed name and father's name on the front (black text; PAN number and date left out),
+    top to bottom -> [Rect, ...]."""
+    spans = []
+    for b in page.get_text("dict", clip=card_rect)["blocks"]:
+        for l in b.get("lines", []):
+            for s in l["spans"]:
+                t = s["text"].strip()
+                if not t or PAN_RE.fullmatch(t) or re.fullmatch(r"\d{2}[/-]\d{2}[/-]\d{4}", t):
+                    continue
+                spans.append(pymupdf.Rect(s["bbox"]))
+    # one value per line (a name drawn in several spans = one line)
+    lines = []
+    for r in sorted(spans, key=lambda r: r.y0):
+        if lines and abs(lines[-1].y0 - r.y0) < 2:
+            lines[-1] |= r
+        else:
+            lines.append(pymupdf.Rect(r))
+    return lines[:2]
+
+
+def pan_front_layers(doc, page, card_rect, rect, radius):
+    """-> (finished front at the default settings, layers for compose_front)."""
+    sig = take_signature(doc, page, card_rect)
+    label = _label_box(page, sig[2], card_rect) if sig else None      # signature already blanked
+    k = OUT_W / rect.width
+    to_px = lambda r: [(r.x0 - rect.x0) * k, (r.y0 - rect.y0) * k, (r.x1 - rect.x0) * k, (r.y1 - rect.y0) * k]
+
+    def card():
+        rgb = _render(page, rect)
+        ppm = rgb.shape[1] / (rect.width / 72 * 25.4)
+        rgb, _ = _fill_corners(rgb, ppm, radius)
+        return np.asarray(Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS)).astype(np.float32)
+
+    layers = {}
+    cur = card()
+    for key, span in zip(("name", "father"), _value_spans(page, card_rect)):
+        page.add_redact_annot(span, fill=False)
+        page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
+                              text=pymupdf.PDF_REDACT_TEXT_REMOVE)
+        nxt = card()
+        a = np.clip(1 - cur.mean(2) / np.maximum(nxt.mean(2), 1), 0, 1)      # black text: with = without x (1 - a)
+        x0, y0, x1, y1 = to_px(span)
+        keep = np.zeros_like(a)
+        keep[max(0, int(y0) - 4):int(y1) + 5, max(0, int(x0) - 4):int(x1) + 5] = 1
+        layers[key] = Image.fromarray((a * keep * 255).round().astype(np.uint8), "L")
+        cur = nxt
+    base = Image.fromarray(cur.round().astype(np.uint8))
+    if sig:
+        lab = [round(v) for v in to_px(label)] if label is not None else None
+        layers.update(sign=sig[0], aspect=sig[1], box=_sign_box(lab), label=lab)
+    return base, layers
 
 
 def _fill_corners(rgb, ppm, radius_mm):
@@ -304,31 +419,63 @@ def _fill_corners(rgb, ppm, radius_mm):
     return out, mask.mean()
 
 
-def pan_card_images(doc):
+def pan_card_images(doc, front=None):
+    """front: PAN front settings (see PAN_FRONT_DEFAULTS); the front image carries
+    info["cps_panfront"] = (base, layers) so the website can change them later."""
     page = doc[0]
     cards = find_pan_cards(page)
-    sig = clear_signature_boxes(doc, page, cards[0])
     out = []
-    for side, rect in zip(("Front", "Back"), cards):
-        rect, radius = refine_card(page, rect)
+    for side, card_rect in zip(("Front", "Back"), cards):
+        rect, radius = refine_card(page, card_rect)
         rect = _fit_aspect(rect)
-        rgb = _render(page, rect)
-        ppm = rgb.shape[1] / (rect.width / 72 * 25.4)
-        rgb, filled = _fill_corners(rgb, ppm, radius)
         print(f"    PAN {side}: {rect.width / 72 * 25.4:.1f} x {rect.height / 72 * 25.4:.1f} mm, "
-              f"corner radius {radius:.1f} mm" + (f", signature made transparent" if side == "Front" and sig else ""))
-        img = Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS)
-        if side == "Back":
-            img = apply_hologram(img)
+              f"corner radius {radius:.1f} mm")
+        if side == "Front":
+            base, layers = pan_front_layers(doc, page, card_rect, rect, radius)
+            img = compose_front(base, layers, front)
+            img.info["cps_panfront"] = (base, layers)
+            print(f"    PAN Front: values {[k for k in ('name', 'father') if k in layers]}, "
+                  f"signature box {layers.get('box')} (label {layers.get('label')})")
+        else:
+            rgb = _render(page, rect)
+            ppm = rgb.shape[1] / (rect.width / 72 * 25.4)
+            rgb, _ = _fill_corners(rgb, ppm, radius)
+            img = apply_hologram(Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS))
         out.append((side, img))
     return out
 
 
 HOLOGRAM_IMG = Path(__file__).resolve().parent / "templates" / "pan_hologram.png"   # cut from a scanned PAN card (600 dpi, corner r 2.0 mm)
+# Sticker brightness (Settings -> General, and per card in the exports list). Gamma on the scan:
+# below 1 lifts the dark / mid tones and leaves white white, so the silver texture stays visible.
+HOLOGRAM_LEVELS = {"A": 1.00, "B": 0.85, "C": 0.72, "D": 0.60, "E": 0.50, "F": 0.40}
+HOLOGRAM_DEFAULT = "E"
 
 
-def apply_hologram(img):
-    """Put the hologram sticker on the grey 'HOLOGRAM' placeholder of the e-PAN back."""
+def hologram_sticker(size, level=HOLOGRAM_DEFAULT):
+    """The sticker picture (RGBA), `size` px wide, at brightness level A (scan as is) .. F (brightest)."""
+    stk = Image.open(HOLOGRAM_IMG).convert("RGBA")
+    stk = stk.resize((size, round(size * stk.height / stk.width)), Image.LANCZOS)
+    g = HOLOGRAM_LEVELS.get(level, HOLOGRAM_LEVELS[HOLOGRAM_DEFAULT])
+    if g != 1.0:
+        a = np.asarray(stk).astype(np.float32)
+        a[..., :3] = np.clip((a[..., :3] / 255) ** g * 255, 0, 255)
+        stk = Image.fromarray(a.round().astype(np.uint8), "RGBA")
+    return stk
+
+
+def place_hologram(base, place, level=HOLOGRAM_DEFAULT):
+    """Card back without sticker + where it goes {"x", "y", "s"} -> finished card back (RGB)."""
+    sticker = hologram_sticker(place["s"], level)
+    out = base.convert("RGBA")
+    out.alpha_composite(sticker, (place["x"] - sticker.width // 2, place["y"] - sticker.height // 2))
+    return out.convert("RGB")
+
+
+def apply_hologram(img, level=HOLOGRAM_DEFAULT):
+    """Put the hologram sticker on the grey 'HOLOGRAM' placeholder of the e-PAN back.
+    The result carries info["cps_holo"] = {"base": card without sticker, "place": {...}} so the
+    sticker brightness can be changed later without the PDF."""
     if not HOLOGRAM_IMG.exists():
         return img
     a = np.asarray(img.convert("RGB")).astype(np.int16)
@@ -358,13 +505,15 @@ def apply_hologram(img):
     feather = cv2.GaussianBlur(hole.astype(np.float32) / 255, (0, 0), 2.0)[..., None]   # no visible seam
     base = (src * (1 - feather) + filled * feather).round().astype(np.uint8)
     # 2) the sticker (cut from a real card with its own rounded corners), real size 17.0 mm
-    stk = Image.open(HOLOGRAM_IMG).convert("RGBA")
     s = round(size)
-    sticker = stk.resize((s, round(s * stk.height / stk.width)), Image.LANCZOS)
-    out = Image.fromarray(base).convert("RGBA")
-    out.alpha_composite(sticker, (round(cx - sticker.width / 2), round(cy - sticker.height / 2)))
-    print(f"    PAN Back: hologram sticker {s}px at ({cx:.0f}, {cy:.0f})")
-    return out.convert("RGB")
+    w0, h0 = Image.open(HOLOGRAM_IMG).size
+    sh = round(s * h0 / w0)
+    place = {"x": round(cx - s / 2) + s // 2, "y": round(cy - sh / 2) + sh // 2, "s": s}   # same spot as before
+    base = Image.fromarray(base)
+    out = place_hologram(base, place, level)
+    out.info["cps_holo"] = {"base": base, "place": place}
+    print(f"    PAN Back: hologram sticker {s}px at ({cx:.0f}, {cy:.0f}), brightness {level}")
+    return out
 
 
 # ------------------------------------------------------------------ card pictures on an A4 sheet

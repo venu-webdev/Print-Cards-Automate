@@ -624,7 +624,8 @@ def aadhaar_cutout_images(doc):
 # ===================================================================== entry points
 CARD_TYPES = {"auto": "Auto-detect", "dl": "Driving Licence", "voter": "Voter ID (e-EPIC)",
               "aadhaar": "Aadhaar (PVC)", "aadhaar_lam": "Aadhaar Laminated (A4)",
-              "pan": "PAN Card", "ration": "Ration Card", "rc": "Vehicle RC", "abha": "ABHA Card"}
+              "pan": "PAN Card", "ration": "Ration Card", "rc": "Vehicle RC", "abha": "ABHA Card",
+              "pmjay": "Ayushman Card (PM-JAY)"}
 
 
 class PasswordNeeded(ValueError):
@@ -655,6 +656,9 @@ def detect_type(doc):
     import pan_rc
     if abha_card.is_abha(doc):          # before the size check below: the ABHA page is wide like a voter sheet
         return "abha"
+    import pmjay_card
+    if pmjay_card.is_pmjay(doc):        # same: the PM-JAY page (front + back side by side) is wide too
+        return "pmjay"
     if pan_rc.is_rc(doc):
         return "rc"
     if pan_rc.card_pictures(doc):       # front + back as two card pictures on A4, no text (new RC print)
@@ -792,13 +796,15 @@ def add_margin(img, scale):
     return Image.fromarray(out)
 
 
-# Cards whose design runs to the very edge (rice card, Aadhaar PVC): BOTH sides are shrunk and centred,
-# and the card's own edge colours are carried out to the new edge on all 4 sides (same spacing as the DL /
-# RC backs: 0.93 -> +3.0 mm left/right, +1.9 mm top/bottom). The rice card applies it in ration_card.render.
-EDGE_SCALE = {"aadhaar": 0.93, "ration": 0.93}
-# Aadhaar: the thin red "UIDAI" micro-text line must not become a solid bar in the margin -> smooth the
-# side colours over this many rows (the rice card's red line under the header SHOULD run on: no smoothing)
-EDGE_SMOOTH = {"aadhaar": 15}
+# Cards whose design runs to the very edge (rice card): BOTH sides are shrunk and centred, and the card's
+# own edge colours are carried out to the new edge on all 4 sides (same spacing as the DL / RC backs:
+# 0.93 -> +3.0 mm left/right, +1.9 mm top/bottom). The rice card applies it in ration_card.render.
+# Aadhaar PVC is NOT padded any more: it prints at full size with its original template edges
+# (to pad it again: add "aadhaar": 0.93 here and "aadhaar": 15 to EDGE_SMOOTH).
+EDGE_SCALE = {"ration": 0.93}
+# Side colours smoothed over this many rows, so a thin line at the edge does not become a solid bar in
+# the margin (the rice card's red line under the header SHOULD run on: no smoothing)
+EDGE_SMOOTH = {}
 EDGE_STRIP = (2, 26)          # edge colour = median of this band of pixels in from each edge (skips the
                               # anti-aliased outermost pixel; wide enough that small text tips don't count)
 
@@ -869,6 +875,9 @@ def _make_cards_raw(doc, card_type):
     if card_type == "abha":
         import abha_card
         return card_type, abha_card.card_images(doc)
+    if card_type == "pmjay":
+        import pmjay_card
+        return card_type, pmjay_card.card_images(doc)
     if card_type in ("pan", "rc"):
         import pan_rc
         return card_type, (pan_rc.pan_card_images(doc) if card_type == "pan" else pan_rc.rc_card_images(doc))

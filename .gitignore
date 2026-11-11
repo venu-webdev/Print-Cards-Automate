@@ -6,6 +6,12 @@ history/
 !export/.gitkeep
 Screenshots/
 
+# shop's design references: screenshots of real customers' cards - NEVER commit
+references/
+
+# this PC's own settings (save folder, network PIN, PAN front defaults) - every PC keeps its own
+settings.json
+
 # reference cards that contain a real person's data (only needed to rebuild templates)
 templates/*_reference.png
 templates/*.local.json

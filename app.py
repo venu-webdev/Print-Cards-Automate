@@ -36,6 +36,9 @@ DEFAULT_SETTINGS = {
     "network": False,          # other PCs on the shop network may use the website (needs a restart)
     "network_pin": "",         # PIN other PCs must enter (this PC never needs it)
 }
+# PAN back hologram sticker brightness, A (scan as is) .. F (brightest). New cards start at
+# pan_rc.HOLOGRAM_DEFAULT ("E"); each card is changed on its back side in the exports list.
+HOLOGRAM_LEVELS = ("A", "B", "C", "D", "E", "F")       # same keys as pan_rc.HOLOGRAM_LEVELS
 NETWORK_KEYS = ("network", "network_pin")      # changed only on this PC, through /api/network
 PORT = 5000
 CARD_TYPES = make_cards.CARD_TYPES
@@ -177,7 +180,7 @@ def public(meta):
     """What the website gets for one job."""
     return {k: meta.get(k) for k in ("job", "source", "sides", "type", "type_name", "details", "ref", "has_photo",
                                      "has_pdf", "ration", "done_at", "names", "edited", "saved", "v",
-                                     "photo_box", "adjust")}
+                                     "photo_box", "adjust", "hologram", "pan_front")}
 
 
 def get_image(job_id, side):
@@ -420,6 +423,7 @@ def api_set_settings():
             s[k] = body[k]
     if s.get("extension") not in (".jpeg", ".jpg"):
         s["extension"] = ".jpeg"
+    s.pop("pan_hologram", None)                     # old setting (now chosen per card)
     save_settings(s)
     return jsonify(s)
 
@@ -476,8 +480,23 @@ def api_process():
 
     images = {}
     pdf = None
+    hologram, holo_base = None, None
+    pan_front, pf_layers = None, None
     for side, img in pages:
         pdf = pdf or img.info.get("cps_pdf")
+        pf = img.info.get("cps_panfront")
+        if pf:                                       # PAN front: name gaps + signature, changeable later
+            import pan_rc
+            params = pan_rc.front_params(load_settings().get("pan_front"))   # "use for new PAN cards"
+            img = pan_rc.compose_front(pf[0], pf[1], params)
+            pan_front = {"side": side, "params": params, "box": pf[1].get("box"), "aspect": pf[1].get("aspect"),
+                         "parts": [k for k in ("name", "father", "sign") if pf[1].get(k) is not None]}
+            pf_layers = pf
+        holo = img.info.get("cps_holo")
+        if holo:                                     # PAN back: sticker drawn at pan_rc.HOLOGRAM_DEFAULT ("E")
+            import pan_rc
+            hologram = {"side": side, "level": pan_rc.HOLOGRAM_DEFAULT, **holo["place"]}
+            holo_base = holo["base"]
         buf = io.BytesIO()
         make_cards.save_jpeg(img, buf)
         images[side] = buf.getvalue()
@@ -493,10 +512,15 @@ def api_process():
             "ration": _ration_summary(ration) if ration else None,
             "done_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "names": {}, "edited": {}, "saved": False, "v": 0,
-            "photo_box": {"Front": photo_box} if photo_box else {}, "adjust": {}}
+            "photo_box": {"Front": photo_box} if photo_box else {}, "adjust": {}, "hologram": hologram,
+            "pan_front": pan_front}
     try:
         job_dir(job_id).mkdir(parents=True, exist_ok=True)
         _write_images(job_id, images)
+        if holo_base is not None:                    # card back without the sticker (brightness changes)
+            holo_base.save(job_dir(job_id) / f"{hologram['side']}.holo_base.png")
+        if pf_layers is not None:                    # PAN front layers (see pan_rc.pan_front_layers)
+            _save_pf_layers(job_id, pan_front["side"], *pf_layers)
         if photo:
             (job_dir(job_id) / "photo.jpeg").write_bytes(photo)
         if pdf:
@@ -862,6 +886,110 @@ def api_adjust_save(job_id):
         job.update(v=int(job.get("v", 0)) + 1, saved=False)
         _write_meta(job_id, job)
     return jsonify(public(job))
+
+
+@app.post("/api/hologram/<job_id>")
+def api_hologram(job_id):
+    """{"level": "A".."F"} - redraw the PAN back's hologram sticker at that brightness.
+    An adjusted back keeps its adjustment (it is applied again on top of the new sticker)."""
+    from PIL import Image
+    import pan_rc
+    job = get_job(job_id)
+    holo, level = job.get("hologram"), str((request.get_json(force=True) or {}).get("level", ""))
+    if not holo or level not in HOLOGRAM_LEVELS:
+        return jsonify({"error": "This card has no hologram to change" if not holo else "Unknown level"}), 400
+    d, side = job_dir(job_id), holo["side"]
+    try:
+        base = Image.open(io.BytesIO((d / f"{side}.holo_base.png").read_bytes()))
+    except OSError:
+        return jsonify({"error": "This card was made before hologram levels existed - upload the PDF again"}), 409
+    card = pan_rc.place_hologram(base, holo, level)
+    with JOBS_LOCK:
+        _replace_side(job_id, job, side, card)
+        job["hologram"] = dict(holo, level=level)
+        _write_meta(job_id, job)
+    return jsonify(public(job))
+
+
+def _replace_side(job_id, job, side, card):
+    """A redrawn card side becomes the untouched card; an adjustment made before is applied again
+    on top of it. Bumps the version (call with JOBS_LOCK held, then _write_meta)."""
+    d = job_dir(job_id)
+    adj = (job.get("adjust") or {}).get(side)
+    if adj:
+        buf = io.BytesIO(); make_cards.save_jpeg(card, buf); (d / f"{side}.orig.jpeg").write_bytes(buf.getvalue())
+        card = apply_adjust(card, _adj_params(adj), tuple(adj["box"]) if adj.get("box") else None)
+    buf = io.BytesIO(); make_cards.save_jpeg(card, buf); (d / f"{side}.jpeg").write_bytes(buf.getvalue())
+    job.update(v=int(job.get("v", 0)) + 1, saved=False)
+
+
+# ---------------------------------------------------------------- PAN front (name gaps, signature)
+# history/<job>/<Side>.pf_base.png  card without name / father's name / signature
+#               <Side>.pf_name.png  <Side>.pf_father.png  (alpha masks)   <Side>.pf_sign.png (RGBA ink)
+PF_PARTS = ("base", "name", "father", "sign")
+
+
+def _save_pf_layers(job_id, side, base, layers):
+    d = job_dir(job_id)
+    base.save(d / f"{side}.pf_base.png")
+    for k in ("name", "father", "sign"):
+        if layers.get(k) is not None:
+            layers[k].save(d / f"{side}.pf_{k}.png")
+
+
+def _load_pf(job_id):
+    from PIL import Image
+    job = get_job(job_id)
+    pf = job.get("pan_front")
+    if not pf:
+        abort(404)
+    d, side = job_dir(job_id), pf["side"]
+    def load(k):
+        p = d / f"{side}.pf_{k}.png"
+        return Image.open(io.BytesIO(p.read_bytes())) if p.is_file() else None
+    base = load("base")
+    if base is None:
+        abort(409)
+    layers = {k: load(k) for k in ("name", "father", "sign")}
+    layers.update(box=pf.get("box"), aspect=pf.get("aspect"))
+    return job, pf, base, layers
+
+
+@app.get("/api/panfront/<job_id>")
+def api_panfront_preview(job_id):
+    """Preview only (nothing saved): ?name_gap=..&father_gap=..&sign_size=..&sign_x=..&sign_y=..
+    &sign_strength=..&sign_contrast=..&sign_dark=..&sign_color=original|black|blue"""
+    import pan_rc
+    job, pf, base, layers = _load_pf(job_id)
+    img = pan_rc.compose_front(base, layers, request.args.to_dict())
+    adj = (job.get("adjust") or {}).get(pf["side"])
+    if adj:                                          # show it as it will be saved
+        img = apply_adjust(img, _adj_params(adj), tuple(adj["box"]) if adj.get("box") else None)
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    resp = send_file(io.BytesIO(buf.getvalue()), mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.post("/api/panfront/<job_id>")
+def api_panfront_save(job_id):
+    """{settings..., "as_default": bool} or {"reset": true} -> redraw the PAN front.
+    as_default: new PAN cards start with these settings too."""
+    import pan_rc
+    body = request.get_json(force=True) or {}
+    job, pf, base, layers = _load_pf(job_id)
+    params = pan_rc.front_params({} if body.get("reset") else body)
+    card = pan_rc.compose_front(base, layers, params)
+    with JOBS_LOCK:
+        _replace_side(job_id, job, pf["side"], card)
+        job["pan_front"] = dict(pf, params=params)
+        _write_meta(job_id, job)
+    if body.get("as_default"):
+        s = load_settings()
+        s["pan_front"] = params
+        save_settings(s)
+    return jsonify(public(job) | {"default": pan_rc.front_params(load_settings().get("pan_front"))})
 
 
 @app.get("/api/photo/<job_id>")

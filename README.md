@@ -7,6 +7,7 @@ The shop's tool for turning document PDFs into print-ready card images (1016 × 
 - **PAN** (e-PAN / Instant PAN), **Voter ID** (e-EPIC), **Driving Licence**, **Vehicle RC**
 - **Ration (rice) card**: from the head of family's e-Aadhaar + RC number (members from AePDS)
 - **ABHA card**: the ABHA card PDF (ABHA app / abha.abdm.gov.in), front + back as PVC cards
+- **Ayushman card (PM-JAY / Dr. NTR Vaidya Seva)**: the card PDF (beneficiary.nha.gov.in), front + back as PVC cards
 - Printing plugins: **Epson L8050** PVC card tray, **A4 office printer** (100 % scale)
 
 > Keep this repository **private**. It contains Microsoft fonts (Nirmala UI) and government logos

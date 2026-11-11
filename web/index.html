@@ -210,6 +210,18 @@ button.stat { border: 0; text-align: left; }
 .ft svg { width: 16px; height: 16px; }
 .side-tag { position: absolute; left: 6px; top: 6px; z-index: 2; height: 18px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 600;
             background: rgba(17, 17, 19, .7); color: #fff; display: inline-flex; align-items: center; pointer-events: none; }
+/* PAN back: hologram sticker brightness A..F, on the card itself while the back is shown */
+.holo-bar { position: absolute; right: 6px; top: 6px; z-index: 2; display: flex; align-items: center; gap: 2px; padding: 2px;
+            border-radius: 8px; background: rgba(17, 17, 19, .8); backdrop-filter: blur(6px); box-shadow: 0 2px 6px rgba(0, 0, 0, .25); cursor: default; }
+.holo-bar span { color: #fff; font-size: 10.5px; font-weight: 600; padding: 0 5px 0 4px; opacity: .8; }
+.holo-bar button { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: #fff;
+                   font-size: 12px; font-weight: 700; cursor: pointer; }
+.holo-bar button:hover { background: rgba(255, 255, 255, .16); }
+.holo-bar button[aria-pressed="true"] { background: var(--accent); }
+.holo-bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row .holo-bar { top: 2px; right: 2px; left: 2px; gap: 0; padding: 1px; justify-content: space-between; }
+.row .holo-bar span, .row .flip:has(.holo-bar) .side-tag { display: none; }
+.row .holo-bar button { width: 17px; height: 18px; font-size: 10.5px; border-radius: 4px; }
 .row .flip { width: 112px; }
 .flip.sheet { aspect-ratio: auto; height: 100%; }
 .flip.sheet .face { background: #fff; }
@@ -313,6 +325,10 @@ button.stat { border: 0; text-align: left; }
 .adj-img.draw { cursor: crosshair; }
 .adj-box { position: absolute; border: 2px dashed #fff; outline: 1px solid rgba(0,0,0,.45); box-shadow: 0 0 0 9999px rgba(0,0,0,.28); pointer-events: none; }
 .adj-ctl { display: grid; gap: 12px; }
+.pf-box { position: absolute; border: 1.5px dashed #e11d48; pointer-events: none; }
+.pf-group { display: grid; gap: 8px; }
+.pf-row { grid-template-columns: 96px 1fr 48px; }
+.pf-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 6px; cursor: pointer; }
 .adj-row { display: grid; grid-template-columns: 82px 1fr 40px; align-items: center; gap: 8px; font-size: 13px; }
 .adj-row input[type=range] { width: 100%; accent-color: var(--accent); }
 .adj-row output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
@@ -642,6 +658,7 @@ select.text { appearance: auto; }
     <div class="dhead"><h3 id="lbTitle"></h3>
       <div class="seg" id="lbSides"><button data-s="Front">Front</button><button data-s="Back">Back</button></div>
       <button class="btn" id="lbAdj" title="Adjust the photo on this side – brightness, contrast, colour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Adjust photo</button>
+      <button class="btn" id="lbPf" title="PAN front – gap under Name / Father's Name, signature size, position and ink" hidden></button>
       <button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download</button>
       <button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="lb-img"><img id="lbImg" alt=""></div>
@@ -703,6 +720,10 @@ ICON.abha = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient i
     <rect width="64" height="64" rx="15" fill="url(#gAb)"/>
     <path d="M32 50S14 39 14 26.5A9 9 0 0 1 32 21a9 9 0 0 1 18 5.5C50 39 32 50 32 50z" fill="#fff"/>
     <path d="M20 31h7l3-6 4 11 3-5h7" fill="none" stroke="#16a34a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+ICON.pmjay = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gPj" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f26522"/><stop offset=".55" stop-color="#f26522"/><stop offset=".55" stop-color="#1b7a3a"/><stop offset="1" stop-color="#1b7a3a"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gPj)"/>
+    <path d="M32 13l15 6v11c0 10-6.5 17-15 21-8.5-4-15-11-15-21V19z" fill="#fff"/>
+    <path d="M32 22v20M22 32h20" stroke="#1b7a3a" stroke-width="5" stroke-linecap="round"/></svg>`;
 ICON.aadhaar_lam = ICON.aadhaar.replace('</svg>', '<rect x="34" y="44" width="26" height="16" rx="4" fill="#65a30d"/><text x="47" y="56" text-anchor="middle" font-family="Segoe UI, Arial" font-size="11" font-weight="800" fill="#fff">A4</text></svg>');
 const TYPE_INFO = {
   auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
@@ -714,9 +735,10 @@ const TYPE_INFO = {
   dl:      {name: 'Driving Licence', short: 'Driving Licence', dot: '#2563eb', sub: '2-page DL PDF'},
   rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
   abha:    {name: 'ABHA Card',       short: 'ABHA',        dot: '#27388f', sub: 'ABHA card PDF from the ABHA app / abha.abdm.gov.in'},
+  pmjay:   {name: 'Ayushman Card',   short: 'Ayushman',    dot: '#f26522', sub: 'PM-JAY / Dr. NTR Vaidya Seva card PDF (beneficiary.nha.gov.in)'},
 };
 const typeName = k => (TYPE_INFO[k] || {}).name || k;
-const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration', 'abha']], ['Vehicle', ['dl', 'rc']]];
+const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration', 'abha', 'pmjay']], ['Vehicle', ['dl', 'rc']]];
 const SVG = {
   down: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>',
   save: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg>',
@@ -878,6 +900,10 @@ async function loadSettings() {
   renderTypes();
 }
 function setExt(v) { document.querySelectorAll('#sExt button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v)); }
+/* PAN hologram sticker brightness: A = scan as is ... F = brightest (pan_rc.HOLOGRAM_LEVELS) */
+const HOLO = [['A', 'Original'], ['B', 'Light'], ['C', 'Medium'], ['D', 'Bright'], ['E', 'Very bright'], ['F', 'Max']];
+const holoBar = j => `<div class="holo-bar" role="group" aria-label="Hologram brightness"><span>Hologram</span>${HOLO.map(([v, t]) =>
+  `<button data-act="holo" data-key="${j.key}" data-v="${v}" title="Hologram ${v} · ${t}" aria-pressed="${v === j.hologram.level}">${v}</button>`).join('')}</div>`;
 const curExt = () => document.querySelector('#sExt button[aria-pressed="true"]')?.dataset.v || '.jpeg';
 const updatePreview = () => { $('#patPreview').textContent = applyPattern($('#sPattern').value, SAMPLE, 'Front') + curExt(); };
 const SI = d => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${d}</svg>`;
@@ -984,8 +1010,7 @@ $('#spage').addEventListener('input', e => { if (e.target.closest('[data-dirty]'
 $('#sAuto').addEventListener('change', () => { autoTxt(); setDirty(true); });
 $('#discardSettings').onclick = () => { fillSettingsForm(); setDirty(false); toast('Changes discarded'); };
 $('#sPattern').oninput = updatePreview;
-document.querySelectorAll('#sExt button').forEach(b => b.onclick = () => { setExt(b.dataset.v); updatePreview(); setDirty(true); });
-document.querySelectorAll('.token').forEach(t => t.onclick = () => {
+document.querySelectorAll('#sExt button').forEach(b => b.onclick = () => { setExt(b.dataset.v); updatePreview(); setDirty(true); });document.querySelectorAll('.token').forEach(t => t.onclick = () => {
   const i = $('#sPattern');
   if (t.dataset.reset) { i.value = DEFAULT_PATTERN; updatePreview(); setDirty(true); return; }
   const p = i.selectionStart ?? i.value.length; i.value = i.value.slice(0, p) + t.dataset.t + i.value.slice(i.selectionEnd ?? p); i.focus(); updatePreview(); setDirty(true);
@@ -1055,7 +1080,8 @@ async function processJob(j, file, password) {
     if (!r.ok) throw new Error(data.error || `Failed (${r.status})`);
     Object.assign(j, {job: data.job, sides: data.sides, state: 'done', usedType: data.type, details: data.details || {},
                       ref: data.ref, hasPhoto: data.has_photo, pdf: !!data.has_pdf, ration: data.ration || null, doneAt: new Date(), file: null,
-                      photoBox: data.photo_box || {}, adjust: data.adjust || {}});
+                      photoBox: data.photo_box || {}, adjust: data.adjust || {}, hologram: data.hologram || null,
+                      panFront: data.pan_front || null});
     j.sides.forEach(s => j.names[s] = applyPattern(settings.name_pattern, j, s));
     render();
     if (settings.auto_save) await saveItems(itemsOf(j), true);
@@ -1067,7 +1093,7 @@ function fromServer(d) {
   const j = {key: d.job, source: d.source, state: 'done', type: d.type, side: 'Front', rc: '', file: null,
     job: d.job, sides: d.sides, usedType: d.type, details: d.details || {}, ref: d.ref, hasPhoto: !!d.has_photo, pdf: !!d.has_pdf,
     ration: d.ration || null, doneAt: d.done_at ? new Date(d.done_at) : null, saved: !!d.saved, v: d.v || 0,
-    photoBox: d.photo_box || {}, adjust: d.adjust || {},
+    photoBox: d.photo_box || {}, adjust: d.adjust || {}, hologram: d.hologram || null, panFront: d.pan_front || null,
     names: {}, edited: {...(d.edited || {})}};
   j.sides.forEach(s => j.names[s] = j.edited[s] && d.names?.[s] ? d.names[s] : applyPattern(settings.name_pattern, j, s));
   return j;
@@ -1218,7 +1244,8 @@ function flipHtml(j) {
       <span class="side-tag">${back ? 'Back' : 'Front'}</span>
       <div class="in"><div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>
       ${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}</div>
-      <div class="tools">${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}" aria-label="Show the ${back ? 'front' : 'back'}">${SVG.flip}<span class="lbl">${back ? 'Front' : 'Back'}</span></button>` : ''}
+      ${back && j.hologram ? holoBar(j) : ''}
+      <div class="tools">${!back && j.panFront ? `<button class="ft" data-act="panfront" data-key="${j.key}" title="PAN front – gap under Name / Father's Name, signature size, position and ink" aria-label="PAN front settings">${PF_ICON}<span class="lbl">PAN front</span></button>` : ''}${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}" aria-label="Show the ${back ? 'front' : 'back'}">${SVG.flip}<span class="lbl">${back ? 'Front' : 'Back'}</span></button>` : ''}
         <button class="ft adj" data-act="adjust" data-key="${j.key}" title="Adjust photo – brightness, contrast, colour" aria-label="Adjust photo">${ADJ_ICON}<span class="lbl">Adjust photo</span>${Object.keys(j.adjust || {}).length ? '<i class="adj-dot"></i>' : ''}</button>
         <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
 }
@@ -1438,6 +1465,67 @@ function drawAdjust() {
 }
 addEventListener('resize', () => { if (adjOv.classList.contains('open')) placeBox(); });
 
+/* ---------- PAN front: gap under the Name / Father's Name labels, signature in its box ---------- */
+const PF_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h6M7 14h4M14 15c1.5-2 2.5-2 3.5 0"/></svg>';
+const PF_DEF = {name_gap: 6, father_gap: 6, sign_size: 100, sign_x: 0, sign_y: 0, sign_strength: 300, sign_contrast: 0, sign_dark: 0, sign_color: 'original'};
+// key, label, min, max, unit shown
+const PF_GROUPS = [
+  ['Gaps', [['name_gap', 'Name gap', -10, 40, 'px'], ['father_gap', "Father's gap", -10, 40, 'px']]],
+  ['Signature', [['sign_size', 'Size', 30, 200, '%'], ['sign_x', 'Left / right', -150, 150, 'px'], ['sign_y', 'Up / down', -60, 60, 'px'],
+                 ['sign_strength', 'Ink strength', 50, 600, '%'], ['sign_contrast', 'Contrast', -50, 100, ''], ['sign_dark', 'Darkness', 0, 100, '']]],
+];
+const PF_COLORS = [['original', 'Original'], ['black', 'Black'], ['blue', 'Blue']];
+const pfOv = document.createElement('div');
+pfOv.className = 'overlay';
+pfOv.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pfTitle" style="width:min(940px,100%)">
+  <div class="dhead"><h3 id="pfTitle">PAN front</h3><button class="btn quiet icon" data-close aria-label="Close">${SVG.x}</button></div>
+  <div class="dbody" id="pfBody"></div><div class="dfoot" id="pfFoot"></div></div>`;
+document.body.appendChild(pfOv);
+pfOv.addEventListener('click', e => { if (e.target === pfOv || e.target.closest('[data-close]')) pfOv.classList.remove('open'); });
+let pf = null, pfTimer = null;                    // {j, p}
+const pfUrl = () => `/api/panfront/${pf.j.job}?` + new URLSearchParams({...pf.p, t: Date.now()});
+const pfPreview = (wait = 140) => { clearTimeout(pfTimer); pfTimer = setTimeout(() => { const im = $('#pfImg'); if (im) im.src = pfUrl(); }, wait); };
+const pfVal = (k, u) => (['sign_x', 'sign_y', 'name_gap', 'father_gap'].includes(k) && pf.p[k] > 0 ? '+' : '') + pf.p[k] + u;
+function openPanFront(j) { pf = {j, p: {...PF_DEF, ...(j.panFront.params || {})}}; pfOv.classList.add('open'); drawPanFront(); }
+function placePfBox() {
+  const el = $('#pfBox'), im = $('#pfImg'), b = pf.j.panFront.box; if (!el || !im) return;
+  el.hidden = !b || !$('#pfShowBox').checked; if (el.hidden) return;
+  const k = im.clientWidth / 1016;
+  Object.assign(el.style, {left: b[0] * k + 'px', top: b[1] * k + 'px', width: (b[2] - b[0]) * k + 'px', height: (b[3] - b[1]) * k + 'px'});
+}
+function drawPanFront() {
+  const {j} = pf, parts = j.panFront.parts || [];
+  $('#pfTitle').textContent = `PAN front · ${j.details?.name || j.source}`;
+  $('#pfBody').innerHTML = `<div class="adj-wrap">
+      <div><div class="adj-img" id="pfWrap"><img id="pfImg" alt="Preview of the PAN front" src="${pfUrl()}"><div class="pf-box" id="pfBox" hidden></div></div>
+        <label class="hint pf-chk"><input type="checkbox" id="pfShowBox" checked> Show the signature box (not printed)</label>
+        <p class="hint" style="margin:4px 0 0">The signature is centred in the box and made as big as fits &ndash; never stretched. Long signatures fill the width, short ones the height.</p></div>
+      <div class="adj-ctl">
+        ${PF_GROUPS.map(([g, rows]) => `<div class="pf-group"><span class="t">${g}</span>${rows.filter(([k]) => k.startsWith('sign') ? parts.includes('sign') : parts.includes(k.split('_')[0])).map(([k, label, lo, hi, u]) =>
+          `<label class="adj-row pf-row"><span>${label}</span><input type="range" min="${lo}" max="${hi}" step="1" value="${pf.p[k]}" data-pf="${k}" data-u="${u}" aria-label="${label}"><output id="pfO_${k}">${pfVal(k, u)}</output></label>`).join('')}</div>`).join('')}
+        ${parts.includes('sign') ? `<div><span class="t">Ink colour</span><div class="seg" id="pfColor">${PF_COLORS.map(([v, t]) => `<button data-v="${v}" aria-pressed="${pf.p.sign_color === v}">${t}</button>`).join('')}</div></div>` : ''}
+        <button class="btn quiet" id="pfDefaults" style="justify-self:start">Back to standard values</button>
+        <label class="pf-chk"><input type="checkbox" id="pfAsDefault"> Use these for new PAN cards too</label>
+      </div></div>`;
+  $('#pfFoot').innerHTML = `<span style="flex:1"></span><button class="btn" data-close>Cancel</button><button class="btn primary" id="pfSave">Save</button>`;
+  const im = $('#pfImg'); im.onload = placePfBox; if (im.complete) placePfBox();
+  $('#pfShowBox').onchange = placePfBox;
+  document.querySelectorAll('[data-pf]').forEach(r => r.oninput = () => { pf.p[r.dataset.pf] = +r.value; $('#pfO_' + r.dataset.pf).textContent = pfVal(r.dataset.pf, r.dataset.u); pfPreview(); });
+  document.querySelectorAll('#pfColor button').forEach(b => b.onclick = () => { pf.p.sign_color = b.dataset.v;
+    document.querySelectorAll('#pfColor button').forEach(x => x.setAttribute('aria-pressed', x === b)); pfPreview(0); });
+  $('#pfDefaults').onclick = () => { pf.p = {...PF_DEF}; drawPanFront(); };
+  $('#pfSave').onclick = async () => {
+    const b = $('#pfSave'); b.disabled = true; b.textContent = 'Saving…';
+    try {
+      const r = await api(`/api/panfront/${j.job}`, {...pf.p, as_default: $('#pfAsDefault').checked});
+      Object.assign(j, {panFront: r.pan_front, adjust: r.adjust || {}, v: r.v, saved: false, side: 'Front'});
+      if (r.default) settings.pan_front = r.default;
+      pfOv.classList.remove('open'); render(); toast($('#pfAsDefault').checked ? 'PAN front saved – new PAN cards use it too' : 'PAN front saved');
+    } catch (e) { toast(e.message, {error: true}); b.disabled = false; b.textContent = 'Save'; }
+  };
+}
+addEventListener('resize', () => { if (pfOv.classList.contains('open')) placePfBox(); });
+
 /* ---------- events ---------- */
 const byKey = k => jobs.find(j => j.key === k);
 let lbJob = null;
@@ -1449,7 +1537,11 @@ function openLightbox(j, side) {
 }
 $('#lbAdj').onclick = () => { $('#lightbox').classList.remove('open'); openAdjust(lbJob, $('#lbImg').dataset.side); };
 function showLb(s) { $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
-  document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); }); }
+  document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); });
+  const pfj = lbJob.panFront, pfb = $('#lbPf');          // PAN front: its own editor, like Adjust photo
+  pfb.hidden = !(pfj && s === pfj.side);
+  if (!pfb.hidden) pfb.innerHTML = PF_ICON + 'PAN front'; }
+$('#lbPf').onclick = () => { $('#lightbox').classList.remove('open'); openPanFront(lbJob); };
 document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
 $('#lbDl').onclick = () => downloadOne(lbJob, $('#lbImg').dataset.side);
 
@@ -1468,6 +1560,15 @@ $('#results').addEventListener('click', async e => {
   const act = b.dataset.act;
   if (act !== 'zoom') e.stopPropagation();
   if (act === 'adjust') openAdjust(j);
+  else if (act === 'panfront') openPanFront(j);
+  else if (act === 'holo') {
+    if (b.dataset.v === j.hologram?.level) return;
+    try {
+      const r = await api(`/api/hologram/${j.job}`, {level: b.dataset.v});
+      Object.assign(j, {hologram: r.hologram, adjust: r.adjust || {}, v: r.v, saved: false, side: r.hologram.side});
+      render(); toast(`Hologram brightness ${b.dataset.v}`);
+    } catch (err) { toast(err.message, {error: true}); }
+  }
   else if (act === 'epdsfill') fillFromEpds(j, b.closest('.rc-edit'));
   else if (act === 'select') { sel = b.checked ? [...sel.filter(k => k !== j.key), j.key] : sel.filter(k => k !== j.key); render(); }
   else if (act === 'flip') {
