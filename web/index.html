@@ -198,13 +198,16 @@ button.stat { border: 0; text-align: left; }
 .flip .face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: inherit; overflow: hidden; border: 1px solid var(--line); background: var(--surface-3); }
 .flip .face img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .flip .face.b { transform: rotateY(180deg); }
-.flip .tools { position: absolute; inset: auto 6px 6px auto; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2; }
-.flip:hover .tools, .flip:focus-within .tools { opacity: 1; }
-@media (hover: none) { .flip .tools { opacity: 1; } }
-.ft { height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: rgba(17, 17, 19, .78); color: #fff; font-size: 11.5px; font-weight: 500;
-      display: inline-flex; align-items: center; gap: 5px; backdrop-filter: blur(6px); }
-.ft:hover { background: rgba(17, 17, 19, .92); }
-.ft svg { width: 13px; height: 13px; }
+/* preview tools (flip / adjust photo / enlarge): always shown and big enough to hit easily */
+.flip .tools { position: absolute; inset: auto 6px 6px auto; display: flex; gap: 5px; z-index: 2; }
+.ft { height: 32px; min-width: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(17, 17, 19, .8);
+      color: #fff; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      backdrop-filter: blur(6px); cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); transition: background .12s, transform .12s; }
+.ft:hover { background: rgba(17, 17, 19, .95); transform: translateY(-1px); }
+.ft:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ft.adj { background: var(--accent); border-color: transparent; }
+.ft.adj:hover { filter: brightness(1.08); background: var(--accent); }
+.ft svg { width: 16px; height: 16px; }
 .side-tag { position: absolute; left: 6px; top: 6px; z-index: 2; height: 18px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 600;
             background: rgba(17, 17, 19, .7); color: #fff; display: inline-flex; align-items: center; pointer-events: none; }
 .row .flip { width: 112px; }
@@ -213,9 +216,9 @@ button.stat { border: 0; text-align: left; }
 .flip.sheet .face img { object-fit: contain; }
 .row .flip.sheet { width: 112px; height: 70px; }
 .gcard .flip.sheet { height: auto; aspect-ratio: 1016 / 638; }
-.row .flip .tools { inset: auto 4px 4px auto; }
-.row .flip .ft { height: 22px; padding: 0 6px; font-size: 11px; }
-.row .flip .ft.zoom { display: none; }
+.row .flip .tools { inset: auto 3px 3px auto; gap: 3px; }
+.row .flip .ft { height: 28px; min-width: 28px; padding: 0; border-radius: 7px; }   /* small thumbnail: icon-only buttons */
+.row .flip .ft .lbl, .row .flip .ft.zoom { display: none; }
 .skel { background: linear-gradient(90deg, var(--surface-3), var(--surface-2), var(--surface-3)); background-size: 200% 100%; animation: sh 1.2s linear infinite; border-radius: 6px; }
 @keyframes sh { to { background-position: -200% 0; } }
 .row .skel.thumb { width: 112px; aspect-ratio: 1016 / 638; }
@@ -223,6 +226,11 @@ button.stat { border: 0; text-align: left; }
 
 /* expanded row: rename & per-side */
 .more { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px 14px; padding: 2px 0 14px 52px; align-items: end; }
+.more-head { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+             padding: 8px 0 6px; border-top: 1px dashed var(--line-2); }
+.more-head .t { font-size: 12px; font-weight: 600; color: var(--text-2); letter-spacing: .02em; }
+.more-head .btn { height: 30px; }
+.btn[data-act="more"][aria-expanded="true"] { background: var(--surface-3); border-color: var(--line-2); }
 .field { display: grid; gap: 4px; }
 .field label { font-size: 12px; color: var(--muted); }
 .name { display: flex; align-items: center; height: 36px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); overflow: hidden; }
@@ -297,6 +305,31 @@ button.stat { border: 0; text-align: left; }
 .lightbox .dialog { width: min(1040px, 100%); background: var(--surface); padding: 0; }
 .lb-img { padding: 14px; background: var(--surface-2); }
 .lb-img img { max-height: calc(100vh - 140px); object-fit: contain; margin: 0 auto; width: 100%; display: block; border-radius: 8px; box-shadow: var(--shadow-2); }
+/* ---------- adjust editor ---------- */
+.adj-wrap { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(230px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 760px) { .adj-wrap { grid-template-columns: 1fr; } }
+.adj-img { position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); user-select: none; touch-action: none; background: var(--surface-2); }
+.adj-img img { width: 100%; display: block; }
+.adj-img.draw { cursor: crosshair; }
+.adj-box { position: absolute; border: 2px dashed #fff; outline: 1px solid rgba(0,0,0,.45); box-shadow: 0 0 0 9999px rgba(0,0,0,.28); pointer-events: none; }
+.adj-ctl { display: grid; gap: 12px; }
+.adj-row { display: grid; grid-template-columns: 82px 1fr 40px; align-items: center; gap: 8px; font-size: 13px; }
+.adj-row input[type=range] { width: 100%; accent-color: var(--accent); }
+.adj-row output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
+.adj-dot { position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.flip .ft { position: relative; }
+.ft.adj .adj-dot { width: 9px; height: 9px; top: -3px; right: -3px; background: #fff; box-shadow: 0 0 0 2px var(--accent); }
+
+/* ---------- selection ---------- */
+.selbox { width: 18px; height: 18px; flex: none; margin: 0; cursor: pointer; accent-color: var(--accent); }
+.row.sel { background: var(--hover); box-shadow: inset 3px 0 0 var(--accent); }
+.gcard.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow-2); }
+.selbar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          padding: 8px 8px 8px 14px; max-width: calc(100% - 32px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 12px;
+          box-shadow: var(--shadow-3); animation: up .18s ease; }
+.selbar[hidden] { display: none; }
+.selbar .n { font-weight: 600; font-size: 13.5px; margin-right: 6px; white-space: nowrap; }
+.selbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 2px; }
 .toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 60; }
 .toast { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--text); color: var(--surface);
          font-size: 13.5px; box-shadow: var(--shadow-3); animation: up .18s ease; max-width: 420px; }
@@ -471,6 +504,13 @@ select.text { appearance: auto; }
           <label class="t" for="rcNo" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Rice card (RC) number</label>
           <input class="text mono" id="rcNo" inputmode="numeric" placeholder="10-digit RC number" autocomplete="off">
           <p class="hint" style="margin:4px 0 0">Members, shop and district come from AePDS. Upload the <b>head of family's</b> e-Aadhaar for the photo, DOB and address.</p>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+            <label class="t" for="epdsText" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Members' dates of birth <span class="hint" style="font-weight:400">(optional, from EPDS)</span></label>
+            <button class="btn" id="epdsOpen" type="button" style="width:100%;justify-content:center" title="Opens EPDS and copies the RC number">Open EPDS rice card search</button>
+            <p class="hint" style="margin:6px 0">On EPDS: <b>Rice card search</b> &rarr; paste the number (Ctrl+V) &rarr; Submit &rarr; press <b>Ctrl+A</b>, <b>Ctrl+C</b> and paste below.</p>
+            <textarea class="text" id="epdsText" rows="2" style="width:100%;resize:vertical;font-size:12.5px" placeholder="Paste the EPDS result page here (Ctrl+V)" spellcheck="false"></textarea>
+            <div class="hint" id="epdsInfo" style="margin-top:4px"></div>
+          </div>
         </div>
         <div class="step"><span class="n">2</span>Add PDFs</div>
         <label class="drop" id="drop">
@@ -493,6 +533,7 @@ select.text { appearance: auto; }
     </aside>
 
     <main class="main">
+      <div class="selbar" id="selbar" role="toolbar" aria-label="Selected cards" hidden></div>
       <div class="mhead">
         <h1>Exports</h1><span class="count" id="count"></span>
         <div class="grow"></div>
@@ -502,7 +543,7 @@ select.text { appearance: auto; }
         </div>
         <button class="btn" id="zipAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg><span class="lbl">Download all</span></button>
         <button class="btn primary" id="saveAll"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg><span class="lbl">Save all to folder</span></button>
-        <button class="btn quiet" id="clearAll" title="Remove finished items from this list (files on disk are kept)">Clear</button>
+        <button class="btn quiet" id="clearAll" title="Delete the cards shown from the history (asks first; files saved to your folder are kept)">Clear</button>
       </div>
       <nav class="tabs" id="tabs" role="tablist" aria-label="Filter by card type"></nav>
       <div class="scroller" id="scroller">
@@ -573,6 +614,10 @@ select.text { appearance: auto; }
           </div>
         </section>
 
+        <section class="spanel" data-panel="network" role="tabpanel" hidden>
+          <div id="sNetBody"></div>
+        </section>
+
         <section class="spanel" data-panel="plugins" role="tabpanel" hidden>
           <div class="plugins" id="pluginList"><span class="hint">No plugins installed.</span></div>
           <p class="hint" style="margin:12px 2px 0">To remove a plugin completely, delete its folder in <span class="mono">plugins/</span>.</p>
@@ -596,6 +641,7 @@ select.text { appearance: auto; }
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
     <div class="dhead"><h3 id="lbTitle"></h3>
       <div class="seg" id="lbSides"><button data-s="Front">Front</button><button data-s="Back">Back</button></div>
+      <button class="btn" id="lbAdj" title="Adjust the photo on this side – brightness, contrast, colour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Adjust photo</button>
       <button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download</button>
       <button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="lb-img"><img id="lbImg" alt=""></div>
@@ -610,6 +656,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
                 set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
 let settings = {}, cardType = 'auto', jobs = [], query = '', tab = 'all';
+let sel = [];          // keys of ticked cards, in the order they were ticked (1st = tray slot 1)
 let view = store.get('cps-view2') === 'cards' ? 'cards' : 'rows';
 
 const ICON = {
@@ -652,6 +699,10 @@ ICON.ration = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient
     <rect width="64" height="64" rx="15" fill="url(#gRa)"/><path d="M12 33h40q-2 17-20 17T12 33z" fill="#c2410c"/>
     <g fill="#fff"><ellipse cx="22" cy="28" rx="3" ry="5" transform="rotate(-25 22 28)"/><ellipse cx="30" cy="25" rx="3" ry="5"/><ellipse cx="38" cy="26" rx="3" ry="5" transform="rotate(20 38 26)"/><ellipse cx="45" cy="29" rx="3" ry="5" transform="rotate(35 45 29)"/><ellipse cx="34" cy="31" rx="3" ry="4.5" transform="rotate(-10 34 31)"/></g>
     <rect x="12" y="31" width="40" height="4" rx="2" fill="#9a3412"/></svg>`;
+ICON.abha = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b4cb0"/><stop offset="1" stop-color="#27388f"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gAb)"/>
+    <path d="M32 50S14 39 14 26.5A9 9 0 0 1 32 21a9 9 0 0 1 18 5.5C50 39 32 50 32 50z" fill="#fff"/>
+    <path d="M20 31h7l3-6 4 11 3-5h7" fill="none" stroke="#16a34a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 ICON.aadhaar_lam = ICON.aadhaar.replace('</svg>', '<rect x="34" y="44" width="26" height="16" rx="4" fill="#65a30d"/><text x="47" y="56" text-anchor="middle" font-family="Segoe UI, Arial" font-size="11" font-weight="800" fill="#fff">A4</text></svg>');
 const TYPE_INFO = {
   auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
@@ -662,9 +713,10 @@ const TYPE_INFO = {
   voter:   {name: 'Voter ID',        short: 'Voter ID',    dot: '#ea580c', sub: 'e-EPIC sheet'},
   dl:      {name: 'Driving Licence', short: 'Driving Licence', dot: '#2563eb', sub: '2-page DL PDF'},
   rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
+  abha:    {name: 'ABHA Card',       short: 'ABHA',        dot: '#27388f', sub: 'ABHA card PDF from the ABHA app / abha.abdm.gov.in'},
 };
 const typeName = k => (TYPE_INFO[k] || {}).name || k;
-const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration']], ['Vehicle', ['dl', 'rc']]];
+const CATS = [['Identity', ['aadhaar', 'aadhaar_lam', 'pan', 'voter', 'ration', 'abha']], ['Vehicle', ['dl', 'rc']]];
 const SVG = {
   down: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>',
   save: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg>',
@@ -697,10 +749,18 @@ async function api(url, body) {
 /* ---------- plugin host API ---------- */
 const CPS = window.CPS = {
   api, toast, esc, SVG,
-  rowActions: [], settingsPanels: {},
-  registerRowAction(a) { this.rowActions.push(a); document.body.classList.add('has-plugins'); document.documentElement.style.setProperty('--acts-w', (312 + 100 * this.rowActions.length - 56) + 'px'); render(); },
+  rowActions: [], settingsPanels: {}, bulkActions: [],
+  // buttons on the selection bar: {id, label, icon, title, when(list) -> show?, blocked(list) -> '' or reason, run(list)}
+  registerBulkAction(a) { this.bulkActions.push(a); render(); },
+  clearSelection() { sel = []; render(); },
+  addToolbarButton(el) { $('#zipAll').before(el); },              // a plugin's own button in the Exports header
+  registerRowAction(a) {           // a.panel: shown in the card's ⋯ options, not in the row
+    this.rowActions.push(a); document.body.classList.add('has-plugins');
+    document.documentElement.style.setProperty('--acts-w', (312 + 100 * this.rowActions.filter(x => !x.panel).length - 56) + 'px'); render();
+  },
   registerSettingsPanel(id, fn) { this.settingsPanels[id] = fn; if (typeof settingsPluginReady === 'function') settingsPluginReady(id); },
   jobView(j) { return {pdf: !!j.pdf, job: j.job, ref: j.ref, source: j.source, sides: [...(j.sides || [])], names: {...j.names}, details: {...(j.details || {})}, type: typeOf(j)}; },
+  doneJobs() { return jobs.filter(j => j.state === 'done' && j.job).map(j => this.jobView(j)); },   // finished cards, newest first
 };
 let PLUGINS = [];
 async function loadPlugins() {
@@ -765,6 +825,46 @@ function renderTypes() {
   $('#chosenType').textContent = typeName(cardType);
   $('#emptyIcons').innerHTML = ['aadhaar', 'pan', 'voter', 'dl', 'rc'].map(k => `<span title="${esc(typeName(k))}">${ICON[k]}</span>`).join('');
 }
+/* ---------- EPDS rice card search (members' real dates of birth) ---------- */
+const EPDS_URL = 'https://epds.ap.gov.in/epdsAP/epds/publicepdsDashBoard.epds';
+let epdsParsed = null;
+const sameName = (a, b) => { const t = s => new Set(String(s || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean));
+  const x = t(a), y = t(b); let n = 0; x.forEach(w => { if (y.has(w)) n++; }); return n > 0 && n >= Math.min(x.size, y.size, 2); };
+const epdsSummary = p => `${p.members.length} member${p.members.length === 1 ? '' : 's'}, ${p.members.filter(m => m.dob).length} with date of birth`
+  + (p.rc_no ? ` · RC ${p.rc_no}` : '') + (p.card_type ? ` · ${p.card_type}` : '');
+$('#epdsOpen').onclick = async () => {
+  const rc = $('#rcNo').value.replace(/\D/g, '');
+  if (rc) { try { await navigator.clipboard.writeText(rc); toast(`RC ${rc} copied – paste it in EPDS (Ctrl+V)`); } catch {} }
+  window.open(EPDS_URL, '_blank', 'noopener');
+};
+let epdsTimer = null;
+$('#epdsText').addEventListener('input', () => {
+  clearTimeout(epdsTimer);
+  epdsTimer = setTimeout(async () => {
+    const text = $('#epdsText').value.trim(), info = $('#epdsInfo');
+    if (!text) { epdsParsed = null; info.textContent = ''; return; }
+    try {
+      epdsParsed = await api('/api/epds/parse', {text});
+      if (!$('#rcNo').value.trim() && epdsParsed.rc_no) $('#rcNo').value = epdsParsed.rc_no;
+      info.innerHTML = `<span class="ok">&#10003; ${esc(epdsSummary(epdsParsed))}</span>`;
+    } catch (e) { epdsParsed = null; info.innerHTML = `<span style="color:var(--err)">${esc(e.message)}</span>`; }
+  }, 250);
+});
+// cards already made: paste EPDS in the ration edit panel -> fills the birth dates, then "Update card"
+async function fillFromEpds(j, box) {
+  const text = box.querySelector('[data-epds]').value.trim();
+  if (!text) { toast('Paste the EPDS result page first', {error: true}); return; }
+  let p; try { p = await api('/api/epds/parse', {text}); } catch (e) { toast(e.message, {error: true}); return; }
+  if (p.rc_no && j.details?.id && p.rc_no !== String(j.details.id).replace(/\D/g, '')) { toast(`This EPDS page is for RC ${p.rc_no}, not ${j.details.id}`, {error: true}); return; }
+  let n = 0;
+  box.querySelectorAll('.rc-row').forEach(row => {
+    const m = j.ration.members[+row.dataset.i], inp = row.querySelector('[data-rcdob]');
+    const e = m && p.members.find(x => sameName(x.name, m.name_en));
+    if (inp && e && e.dob) { inp.value = e.dob; n++; }
+  });
+  toast(n ? `Filled ${n} date${n > 1 ? 's' : ''} of birth – check, then click Update card` : 'No member names matched the EPDS page', {error: !n});
+}
+
 $('#types').addEventListener('click', e => {
   const b = e.target.closest('.pick'); if (!b) return;
   cardType = b.dataset.k; renderTypes(); $('#rcBox').hidden = cardType !== 'ration'; if (cardType === 'ration') $('#rcNo').focus();
@@ -787,10 +887,41 @@ const SICON = {
   printer: SI('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>'),
   card: SI('<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/>'),
   plugins: SI('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><path d="M16.5 13v7M13 16.5h7"/>'),
+  network: SI('<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-4h12v4"/>'),
 };
+async function renderNetwork() {
+  const el = $('#sNetBody');
+  if (!settings.is_host) {
+    el.innerHTML = '<div class="scard"><div class="srow"><div class="slab"><span class="lab">Shared website</span><p>You are using the main PC&rsquo;s website over the network. Sharing is set up on the main PC.</p></div></div></div>';
+    return;
+  }
+  el.innerHTML = '<span class="status"><span class="spin"></span>Checking the network…</span>';
+  let n; try { n = await api('/api/network'); } catch (e) { el.innerHTML = `<p class="plug-err">${esc(e.message)}</p>`; return; }
+  const restart = n.enabled !== n.listening_on_network;
+  el.innerHTML = `<div class="scard">
+      <div class="srow"><div class="slab"><label for="nOn">Share on the network</label><p>Other PCs in the shop open this website in their browser. Cards, history and printers stay on <b>this</b> PC &ndash; printing from another PC prints here.</p></div>
+        <div class="sctl sw"><span class="hint">${n.enabled ? 'On' : 'Off'}</span><input type="checkbox" id="nOn" ${n.enabled ? 'checked' : ''}></div></div>
+      <div class="srow"><div class="slab"><label for="nPin">PIN for other PCs</label><p>4&ndash;8 digits. Other PCs must type it once; this PC never needs it. Change it to lock everyone out again.</p></div>
+        <div class="sctl"><div class="rowf"><input class="text mono" id="nPin" type="password" inputmode="numeric" maxlength="8" placeholder="${n.pin_set ? '•••• (set – type a new one to change)' : 'e.g. 4826'}" autocomplete="new-password"><button class="btn" id="nPinSave">Save PIN</button></div></div></div>
+    </div>
+    ${restart ? `<div class="pnotice" style="margin-top:12px"><b>Restart needed:</b> close the black <b>Start Website</b> window and start <code>Start Website.bat</code> again to ${n.enabled ? 'start' : 'stop'} sharing.</div>` : ''}
+    ${n.enabled ? `<div class="scard" style="margin-top:12px">
+      <div class="srow"><div class="slab"><span class="lab">Address for other PCs</span><p>Type this in the other PC&rsquo;s browser (Chrome / Edge). Bookmark it there.</p></div>
+        <div class="sctl">${n.addresses.length ? n.addresses.map(a => `<div><b class="mono">${esc(a.url)}</b> <span class="hint">${esc(a.name)}</span></div>`).join('') : '<span class="hint">No network connection found.</span>'}</div></div>
+      <div class="srow"><div class="slab"><span class="lab">Windows Firewall</span><p>Lets other PCs reach this one on private (shop / home) networks only.</p></div>
+        <div class="sctl">${n.firewall ? '<span class="chip on">Allowed</span>' : '<button class="btn" id="nFw">Allow through firewall…</button><p class="hint" style="margin:6px 0 0">Windows asks for permission (Yes).</p>'}</div></div>
+    </div>` : ''}`;
+  const set = async body => { try { await api('/api/network', body); toast('Saved'); renderNetwork(); } catch (e) { toast(e.message, {error: true}); renderNetwork(); } };
+  $('#nOn').onchange = e => set({enabled: e.target.checked});
+  $('#nPinSave').onclick = () => { const v = $('#nPin').value.trim(); if (!/^\d{4,8}$/.test(v)) { toast('The PIN must be 4 to 8 digits', {error: true}); return; } set({pin: v}); };
+  if ($('#nFw')) $('#nFw').onclick = async () => { const b = $('#nFw'); b.disabled = true; b.textContent = 'Waiting for Windows…';
+    try { const r = await api('/api/network/firewall', {}); toast(r.firewall ? 'Allowed through Windows Firewall' : 'Not allowed – click Yes in the Windows prompt', {error: !r.firewall}); } catch (e) { toast(e.message, {error: true}); }
+    renderNetwork(); };
+}
 function settingsTabs() {
   const t = [{id: 'general', group: 'Workspace', name: 'General', icon: SICON.general, desc: 'Where finished cards are saved.', dirtyAware: true},
-             {id: 'names', group: 'Workspace', name: 'File names', icon: SICON.names, desc: 'How exported card images are named.', dirtyAware: true}];
+             {id: 'names', group: 'Workspace', name: 'File names', icon: SICON.names, desc: 'How exported card images are named.', dirtyAware: true},
+             {id: 'network', group: 'Workspace', name: 'Network sharing', icon: SICON.network, desc: 'Let other PCs in the shop use this website.'}];
   for (const p of PLUGINS) if (p.enabled && !p.error && p.ui)
     t.push({id: 'p-' + p.id, group: 'Printers & plugins', name: ({epson_pvc: 'Card printer · Epson', office_print: 'A4 printer · Office'})[p.id] || p.name.replace(/ printing$/i, ''),
             icon: /pvc|card/i.test(p.id + ' ' + p.name) ? SICON.card : SICON.printer, desc: p.description, plugin: p});
@@ -821,6 +952,7 @@ function showSettingsTab(id) {
   $('#sTitle').textContent = t.plugin ? t.plugin.name : t.name; $('#sDesc').textContent = t.desc || '';
   document.querySelectorAll('.spanel').forEach(pn => pn.hidden = pn.dataset.panel !== (t.plugin ? 'plugin' : t.id));
   if (t.id === 'plugins') renderPlugins();
+  if (t.id === 'network') renderNetwork();
   if (t.plugin) {
     const el = $('#sPluginBody'), fn = CPS.settingsPanels[t.plugin.id];
     el.innerHTML = fn ? '' : '<span class="status"><span class="spin"></span>Loading…</span>';
@@ -897,18 +1029,24 @@ function addFiles(list) {
   if (!files.length) { toast('Please choose PDF files', {error: true}); return; }
   const rc = cardType === 'ration' ? $('#rcNo').value.replace(/\D/g, '') : '';
   if (cardType === 'ration' && rc.length < 8) { toast('Enter the rice card (RC) number first', {error: true}); $('#rcNo').focus(); return; }
+  if (cardType === 'ration' && epdsParsed && epdsParsed.rc_no && epdsParsed.rc_no !== rc) {
+    toast(`The pasted EPDS page is for RC ${epdsParsed.rc_no}, not ${rc}`, {error: true}); return;
+  }
+  const epds = cardType === 'ration' && epdsParsed ? $('#epdsText').value : '';
   if (cardType === 'ration' && files.length > 1) { toast('Ration Card: add one Aadhaar PDF per RC number', {error: true}); return; }
   if (files.length > 1) toast(`${files.length} PDFs added – processing one after another`);
   for (const f of files) {
-    const j = {key: Math.random().toString(36).slice(2), source: f.name.replace(/\.pdf$/i, ''), state: 'waiting', names: {}, edited: {}, type: cardType, file: f, side: 'Front', rc};
+    const j = {key: Math.random().toString(36).slice(2), source: f.name.replace(/\.pdf$/i, ''), state: 'waiting', names: {}, edited: {}, type: cardType, file: f, side: 'Front', rc, epds};
     jobs.unshift(j); queue = queue.then(() => processJob(j, f));
   }
+  if (epds) { $('#epdsText').value = ''; epdsParsed = null; $('#epdsInfo').textContent = ''; }   // next family starts clean
   if (tab !== 'all' && tab !== cardType) tab = 'all';
   render();
 }
 async function processJob(j, file, password) {
   j.state = 'working'; j.error = ''; render();
   const fd = new FormData(); fd.append('file', file); fd.append('card_type', j.type); if (j.rc) fd.append('rc_no', j.rc);
+  if (j.epds) fd.append('epds', j.epds);
   if (password) fd.append('password', password);
   try {
     const r = await fetch('/api/process', {method: 'POST', body: fd});
@@ -916,11 +1054,46 @@ async function processJob(j, file, password) {
     if (data.needs_password) { j.state = 'locked'; j.error = data.error; render(); return; }
     if (!r.ok) throw new Error(data.error || `Failed (${r.status})`);
     Object.assign(j, {job: data.job, sides: data.sides, state: 'done', usedType: data.type, details: data.details || {},
-                      ref: data.ref, hasPhoto: data.has_photo, pdf: !!data.has_pdf, ration: data.ration || null, doneAt: new Date(), file: null});
+                      ref: data.ref, hasPhoto: data.has_photo, pdf: !!data.has_pdf, ration: data.ration || null, doneAt: new Date(), file: null,
+                      photoBox: data.photo_box || {}, adjust: data.adjust || {}});
     j.sides.forEach(s => j.names[s] = applyPattern(settings.name_pattern, j, s));
     render();
     if (settings.auto_save) await saveItems(itemsOf(j), true);
   } catch (e) { j.state = 'error'; j.error = e.message; render(); }
+}
+
+/* ---------- history (kept on the server, survives refresh / restart) ---------- */
+function fromServer(d) {
+  const j = {key: d.job, source: d.source, state: 'done', type: d.type, side: 'Front', rc: '', file: null,
+    job: d.job, sides: d.sides, usedType: d.type, details: d.details || {}, ref: d.ref, hasPhoto: !!d.has_photo, pdf: !!d.has_pdf,
+    ration: d.ration || null, doneAt: d.done_at ? new Date(d.done_at) : null, saved: !!d.saved, v: d.v || 0,
+    photoBox: d.photo_box || {}, adjust: d.adjust || {},
+    names: {}, edited: {...(d.edited || {})}};
+  j.sides.forEach(s => j.names[s] = j.edited[s] && d.names?.[s] ? d.names[s] : applyPattern(settings.name_pattern, j, s));
+  return j;
+}
+async function loadHistory() {
+  try {
+    const list = await api('/api/jobs'), have = new Set(jobs.map(j => j.job));
+    jobs = [...jobs, ...list.filter(d => !have.has(d.job)).map(fromServer)];     // cards being made now stay on top
+    render();
+  } catch (e) { toast('Could not load earlier cards: ' + e.message, {error: true}); }
+}
+const nameTimers = {};
+function persistNames(j) {                       // file names typed by hand (debounced)
+  clearTimeout(nameTimers[j.key]);
+  nameTimers[j.key] = setTimeout(() => api(`/api/jobs/${j.job}`, {names: j.names, edited: j.edited}).catch(() => {}), 600);
+}
+async function deleteJobs(list, what) {
+  const onServer = list.filter(j => j.state === 'done' && j.job), local = list.filter(j => !onServer.includes(j));
+  if (onServer.length && !confirm(`Delete ${what} from the history?\n\nThis can't be undone. Files you already saved to your folder are kept.`)) return false;
+  try {
+    if (onServer.length) await api('/api/jobs/delete', {jobs: onServer.map(j => j.job)});
+    const gone = new Set([...onServer, ...local]);
+    jobs = jobs.filter(j => !gone.has(j)); sel = sel.filter(k => jobs.some(j => j.key === k));
+    render(); if (onServer.length) toast(`Deleted ${onServer.length} card${onServer.length > 1 ? 's' : ''}`);
+    return true;
+  } catch (e) { toast(e.message, {error: true}); return false; }
 }
 
 /* ---------- actions ---------- */
@@ -931,6 +1104,30 @@ function downloadOne(j, side) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 const downloadBoth = j => j.sides.forEach((s, i) => setTimeout(() => downloadOne(j, s), i * 350));
+/* A4 PDF: front + back side by side at real PVC size, with cut marks (4 cards per page) */
+const A4_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="1.5"/><rect x="7.5" y="6" width="4" height="3" rx=".5"/><rect x="12.5" y="6" width="4" height="3" rx=".5"/></svg>';
+const a4Btn = j => j.pdf ? '' : `<button class="btn quiet" data-act="a4" data-key="${j.key}" title="A4 PDF: front and back side by side at real PVC size, with cut marks">${A4_ICON}A4 PDF</button>`
+  + panelActions(j);
+// plugin actions marked "panel" (e.g. Print A4 on the office printer) live in the ⋯ options
+const panelActions = j => CPS.rowActions.filter(a => a.panel && (!a.when || a.when(CPS.jobView(j))))
+  .map(a => `<button class="btn quiet" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}${esc(a.label)}</button>`).join('');
+function downloadA4(j) {
+  const a = document.createElement('a');
+  a.href = `/api/a4?job=${j.job}&name=${encodeURIComponent(baseName(j) + '_A4')}`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function downloadA4Many(list) {
+  const cards = list.filter(j => !j.pdf);
+  if (!cards.length) { toast('Laminated Aadhaar sheets are already A4 – select PVC cards', {error: true}); return; }
+  const name = `PVC-A4_${stamp()}_${cards.length}-cards`;
+  try {
+    const r = await fetch('/api/a4', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({jobs: cards.map(j => j.job), name})});
+    if (!r.ok) throw new Error('Could not build the A4 PDF');
+    const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = name + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    if (cards.length < list.length) toast(`${list.length - cards.length} laminated sheet${list.length - cards.length > 1 ? 's' : ''} left out (already A4)`);
+  } catch (e) { toast(e.message, {error: true}); }
+}
 async function downloadZip(items, zipName) {
   try {
     const r = await fetch('/api/zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({items, zip_name: zipName})});
@@ -953,7 +1150,11 @@ async function saveItems(items, auto = false) {
 const doneShown = () => visible().filter(j => j.state === 'done');
 $('#zipAll').onclick = () => { const l = doneShown(); downloadZip(l.flatMap(itemsOf), `CARD-EXPORTS_${stamp()}_${l.length}-cards`); };
 $('#saveAll').onclick = () => saveItems(doneShown().flatMap(itemsOf));
-$('#clearAll').onclick = () => { jobs = jobs.filter(j => j.state === 'working' || j.state === 'waiting'); render(); };
+$('#clearAll').onclick = () => {                 // deletes what is shown (respects the tab / search filter)
+  const l = visible().filter(j => j.state !== 'working' && j.state !== 'waiting');
+  const n = l.filter(j => j.state === 'done').length;
+  deleteJobs(l, n === jobs.filter(j => j.state === 'done').length ? `all ${n} cards` : `the ${n} card${n > 1 ? 's' : ''} shown`);
+};
 $('#stAttnBtn').onclick = () => { tab = 'attention'; render(); };
 
 /* ---------- filtering ---------- */
@@ -964,7 +1165,8 @@ function matches(j) {
   if (tab !== 'all' && tab !== 'attention' && typeOf(j) !== tab) return false;
   if (!query) return true;
   const d = j.details || {};
-  const hay = [d.name, d.id, d.type_label, typeOf(j) && typeName(typeOf(j)), j.source, j.ref, ...Object.values(j.names || {})].filter(Boolean).join(' ').toLowerCase();
+  const hay = [d.name, d.id, d.type_label, typeOf(j) && typeName(typeOf(j)), j.source, j.ref, ...Object.values(j.names || {}),
+               j.doneAt && whenText(j), j.doneAt && j.doneAt.toLocaleDateString([], {day: 'numeric', month: 'long', year: 'numeric'})].filter(Boolean).join(' ').toLowerCase();
   return query.toLowerCase().split(/\s+/).every(w => hay.includes(w));
 }
 const visible = () => jobs.filter(matches);
@@ -986,7 +1188,7 @@ function avatarHtml(j) {
 function whoHtml(j) {
   const n = j.details?.name;
   const title = n ? `<b title="${esc(n)}">${esc(n)}</b>` : (j.state === 'done' ? `<b class="unk" title="This PDF has no readable name (e.g. a scanned Voter ID)">Name not in PDF</b>` : `<b>${esc(j.source)}.pdf</b>`);
-  let sub = `${esc(j.source)}.pdf` + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
+  let sub = (j.doneAt ? `${esc(whenText(j))} &middot; ` : '') + `${esc(j.source)}.pdf` + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
   if (j.state === 'waiting') sub = 'Waiting in queue';
   if (j.state === 'working') sub = 'Processing…';
   return `<span class="who">${title}<small title="${esc(j.source)}.pdf">${sub}</small>${j.ref ? `<small class="refline mono">${esc(j.ref)}</small>` : ''}</span>`;
@@ -1007,7 +1209,8 @@ function flipHtml(j) {
     return `<div class="flip sheet" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
       <span class="side-tag">${esc(s)}</span>
       <div class="in"><div class="face f"><img src="${img(j, s)}" alt="${esc(s)}" loading="lazy"></div></div>
-      <div class="tools"><button class="ft" data-act="flip" data-key="${j.key}" title="Show ${esc(next)}">${SVG.flip}${esc(next)}</button>
+      <div class="tools"><button class="ft" data-act="flip" data-key="${j.key}" title="Show ${esc(next)}" aria-label="Show ${esc(next)}">${SVG.flip}<span class="lbl">${esc(next)}</span></button>
+        <button class="ft adj" data-act="adjust" data-key="${j.key}" title="Adjust the face – brightness, contrast, colour (all sheets)" aria-label="Adjust photo">${ADJ_ICON}<span class="lbl">Adjust photo</span>${Object.keys(j.adjust || {}).length ? '<i class="adj-dot"></i>' : ''}</button>
         <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
   }
   const back = j.side === 'Back', hasBack = (j.sides || []).includes('Back');
@@ -1015,16 +1218,17 @@ function flipHtml(j) {
       <span class="side-tag">${back ? 'Back' : 'Front'}</span>
       <div class="in"><div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>
       ${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}</div>
-      <div class="tools">${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}">${SVG.flip}${back ? 'Front' : 'Back'}</button>` : ''}
+      <div class="tools">${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}" aria-label="Show the ${back ? 'front' : 'back'}">${SVG.flip}<span class="lbl">${back ? 'Front' : 'Back'}</span></button>` : ''}
+        <button class="ft adj" data-act="adjust" data-key="${j.key}" title="Adjust photo – brightness, contrast, colour" aria-label="Adjust photo">${ADJ_ICON}<span class="lbl">Adjust photo</span>${Object.keys(j.adjust || {}).length ? '<i class="adj-dot"></i>' : ''}</button>
         <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
 }
 function actsHtml(j, grid) {
   if (j.state === 'done') return `
     <button class="btn ${grid ? '' : 'lg'}" data-act="save" data-key="${j.key}" title="Save front + back to the save folder">${SVG.save}<span class="lbl-s">Save</span></button>
-    ${CPS.rowActions.filter(a => !a.when || a.when(CPS.jobView(j))).map(a => `<button class="btn ${grid ? '' : 'lg'}" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}<span class="lbl-s">${esc(a.label)}</span></button>`).join('')}
+    ${CPS.rowActions.filter(a => !a.panel && (!a.when || a.when(CPS.jobView(j)))).map(a => `<button class="btn ${grid ? '' : 'lg'}" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}<span class="lbl-s">${esc(a.label)}</span></button>`).join('')}
     ${j.pdf ? `<button class="btn primary ${grid ? '' : 'lg'}" data-act="pdf" data-key="${j.key}" title="Download the print-quality PDF (all sheets)">${SVG.down}PDF</button>`
             : `<button class="btn primary ${grid ? '' : 'lg'}" data-act="both" data-key="${j.key}" title="Download front + back JPEGs">${SVG.down}Download</button>`}
-    <button class="btn quiet icon ${grid ? '' : 'lg'}" data-act="more" data-key="${j.key}" aria-expanded="${!!j.open}" title="Rename files, single side, remove">${SVG.more}</button>`;
+    <button class="btn quiet icon ${grid ? '' : 'lg'}" data-act="more" data-key="${j.key}" aria-expanded="${!!j.open}" title="${j.open ? 'Close options (Esc)' : 'Rename files, single side, remove'}" aria-label="${j.open ? 'Close options' : 'More options'}">${j.open ? SVG.x : SVG.more}</button>`;
   if (needsAction(j)) return `<button class="btn quiet icon" data-act="remove" data-key="${j.key}" title="Remove">${SVG.x}</button>`;
   return `<span class="status"><span class="spin"></span>${j.state === 'working' ? 'Processing' : 'Queued'}</span>`;
 }
@@ -1032,8 +1236,10 @@ function numberRcRows(box) {
   let n = 2;
   box.querySelectorAll('.rc-row').forEach(r => { if (r.querySelector('.rc-mv')) r.querySelector('.rc-no').textContent = String(n++).padStart(2, '0'); });
 }
+const moreHead = (j, title) => `<div class="more-head"><span class="t">${title}</span>
+  <button class="btn quiet" data-act="more" data-key="${j.key}" title="Close (Esc)">${SVG.x}Close</button></div>`;
 function extraHtml(j) {
-  if (j.state === 'done' && j.open && j.ration) return `<div class="more rc-edit">
+  if (j.state === 'done' && j.open && j.ration) return `<div class="more rc-edit">${moreHead(j, 'Edit rice card')}
       <div class="field" style="grid-column:1/-1"><label>Members as printed &ndash; fix Telugu spelling, set the birth date if known, and use &uarr; &darr; to match the order on an old card. Then <b>Update card</b>.</label></div>
       <div class="rc-rows" style="grid-column:1/-1">${j.ration.members.map((m, i) => `<div class="rc-row" data-i="${i}">
         <span class="rc-no mono">${m.head ? 'Head' : String(i + 1).padStart(2, '0')}</span>
@@ -1042,26 +1248,32 @@ function extraHtml(j) {
         ${m.head ? '<span></span><span></span>' : `<input class="text mono rc-dob" data-rcdob="${i}" value="${esc((m.dob_age || '').split('/')[0])}" placeholder="YYYY-MM-DD" aria-label="Birth date">
         <span class="rc-mv"><button class="btn quiet icon" data-act="rcup" data-key="${j.key}" title="Move up">&uarr;</button><button class="btn quiet icon" data-act="rcdown" data-key="${j.key}" title="Move down">&darr;</button></span>`}
       </div>`).join('')}</div>
+      <div class="field" style="grid-column:1/-1"><label>Dates of birth from EPDS &ndash; open EPDS rice card search, Submit, press Ctrl+A, Ctrl+C and paste here</label>
+        <div class="rowf"><textarea class="text" data-epds rows="2" style="resize:vertical;font-size:12.5px" placeholder="Paste the EPDS result page (Ctrl+V)" spellcheck="false"></textarea>
+          <div style="display:grid;gap:6px"><button class="btn" data-act="epdsfill" data-key="${j.key}">Fill dates</button>
+            <a class="btn quiet" href="https://epds.ap.gov.in/epdsAP/epds/publicepdsDashBoard.epds" target="_blank" rel="noopener" style="font-size:12.5px">Open EPDS</a></div></div></div>
       <div class="field" style="grid-column:1/-1"><label>Permanent address</label>
         <input class="text" data-rcaddr="1" data-key="${j.key}" value="${esc(j.ration.permanent_address)}" spellcheck="false"></div>
       <div class="acts" style="grid-column:1/-1;justify-content:flex-start">
-        <button class="btn primary" data-act="rcsave" data-key="${j.key}">Update card</button>
+        <button class="btn primary" data-act="rcsave" data-key="${j.key}">Update card</button>${adjustBtn(j)}${a4Btn(j)}
         ${j.sides.map(s => `<button class="btn quiet" data-act="dl" data-key="${j.key}" data-side="${esc(s)}">${SVG.down}${esc(s)}</button>`).join('')}
         <button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
-  if (j.state === 'done' && j.open) return `<div class="more">${j.sides.map(s => `
+  if (j.state === 'done' && j.open) return `<div class="more">${moreHead(j, 'File names &amp; options')}${j.sides.map(s => `
       <div class="field"><label>${esc(s)} file name</label><div class="name"><input value="${esc(j.names[s])}" data-key="${j.key}" data-side="${esc(s)}" spellcheck="false" aria-label="${esc(s)} file name"><span>${esc(settings.extension || '.jpeg')}</span>
         <button class="btn quiet icon" data-act="dl" data-key="${j.key}" data-side="${esc(s)}" title="Download ${esc(s)} only">${SVG.down}</button></div></div>`).join('')}
-      <div class="acts"><button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
+      <div class="acts">${adjustBtn(j)}${a4Btn(j)}<button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
   if (j.state === 'locked') return `<div class="note"><form class="lock" data-key="${j.key}"><strong style="color:var(--err)">${esc(j.error)}</strong>
       <input type="password" placeholder="PDF password" autocomplete="off" data-pw="${j.key}"><button class="btn primary" type="submit">Unlock</button>
       <span class="hint">e-Aadhaar: first 4 letters of the name in capitals + birth year (SUBR1992) &ensp; e-PAN: date of birth DDMMYYYY</span></form></div>`;
   if (j.state === 'error') return `<div class="note err">${esc(j.error)}</div>`;
   return '';
 }
+const selBox = j => j.state === 'done'
+  ? `<input type="checkbox" class="selbox" data-act="select" data-key="${j.key}" ${sel.includes(j.key) ? 'checked' : ''} aria-label="Select ${esc(j.details?.name || j.source)}" title="Select">` : '';
 function rowHtml(j) {
   const done = j.state === 'done';
-  return `<div class="row" data-k="${j.key}">
-    <div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
+  return `<div class="row ${sel.includes(j.key) ? 'sel' : ''}" data-k="${j.key}">
+    <div class="holder">${selBox(j)}${avatarHtml(j)}${whoHtml(j)}</div>
     <div class="c-type">${done ? chipHtml(typeOf(j)) : (j.state === 'working' || j.state === 'waiting' ? '<div class="skel line"></div>' : chipHtml(typeOf(j)))}</div>
     <div class="c-doc">${done ? docHtml(j) : ''}</div>
     <div class="c-ref">${refHtml(j)}</div>
@@ -1071,9 +1283,9 @@ function rowHtml(j) {
 }
 function cardHtml(j) {
   const done = j.state === 'done';
-  return `<article class="gcard">
+  return `<article class="gcard ${sel.includes(j.key) ? 'sel' : ''}">
     ${done ? flipHtml(j) : (needsAction(j) ? '' : '<div class="skel thumb"></div>')}
-    <div class="gbody"><div class="holder">${avatarHtml(j)}${whoHtml(j)}</div>
+    <div class="gbody"><div class="holder">${selBox(j)}${avatarHtml(j)}${whoHtml(j)}</div>
       ${done ? `<div class="gmeta">${chipHtml(typeOf(j))}${docHtml(j)}</div><div class="gref">${refHtml(j)}</div>` : ''}
       <div class="gacts acts">${actsHtml(j, true)}</div></div>
     ${extraHtml(j)}</article>`;
@@ -1107,7 +1319,124 @@ function render() {
   else box.innerHTML = `<div class="grid">${shown.map(cardHtml).join('')}</div>`;
   if (fk) { const el = box.querySelector(`input[data-key="${fk}"][data-side="${fs}"]`); if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch {} } }
   else { const pw = box.querySelector('input[data-pw]'); if (pw && !pw.value && document.activeElement === document.body) pw.focus(); }
+  renderSelbar();
 }
+
+/* ---------- selection bar ---------- */
+const selected = () => sel.map(byKey).filter(Boolean);
+function renderSelbar() {
+  sel = sel.filter(k => { const j = byKey(k); return j && j.state === 'done'; });     // drop removed / re-processing cards
+  const bar = $('#selbar'), list = selected(), views = list.map(j => CPS.jobView(j));
+  bar.hidden = !list.length;
+  if (!list.length) { bar.innerHTML = ''; return; }
+  const acts = CPS.bulkActions.filter(a => !a.when || a.when(views)).map(a => {
+    const why = a.blocked ? a.blocked(views) : '';
+    return `<button class="btn ${a.primary ? 'primary' : ''}" data-bulk="${esc(a.id)}" ${why ? 'disabled' : ''} title="${esc(why || a.title || a.label)}">${a.icon || ''}${esc(a.label)}</button>`;
+  }).join('');
+  bar.innerHTML = `<span class="n">${list.length} selected</span>${acts}${acts ? '<span class="sep"></span>' : ''}
+    <button class="btn" data-bulk="_zip" title="Download the selected cards as one ZIP">${SVG.down}Download</button>
+    <button class="btn" data-bulk="_a4" title="One A4 PDF: each card's front and back side by side, 4 cards per page">${A4_ICON}A4 PDF</button>
+    <button class="btn" data-bulk="_save" title="Save the selected cards to the save folder">${SVG.save}Save</button>
+    <button class="btn quiet" data-bulk="_del" title="Delete the selected cards from the history">Delete</button>
+    <button class="btn quiet icon" data-bulk="_clear" title="Clear selection (Esc)" aria-label="Clear selection">${SVG.x}</button>`;
+}
+$('#selbar').addEventListener('click', e => {
+  const b = e.target.closest('[data-bulk]'); if (!b || b.disabled) return;
+  const list = selected(), id = b.dataset.bulk;
+  if (id === '_clear') CPS.clearSelection();
+  else if (id === '_zip') downloadZip(list.flatMap(itemsOf), `CARD-EXPORTS_${stamp()}_${list.length}-cards`);
+  else if (id === '_save') saveItems(list.flatMap(itemsOf));
+  else if (id === '_a4') downloadA4Many(list);
+  else if (id === '_del') deleteJobs(list, `${list.length} selected card${list.length > 1 ? 's' : ''}`);
+  else { const a = CPS.bulkActions.find(x => x.id === id); if (a) try { a.run(list.map(j => CPS.jobView(j))); } catch (err) { toast(err.message, {error: true}); } }
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('.overlay.open, .lightbox.open')) return;
+  if (jobs.some(j => j.open)) { jobs.forEach(j => { j.open = false; }); render(); }   // Esc closes the options panel first
+  else if (sel.length) CPS.clearSelection();
+});
+
+/* ---------- adjust (photo / card brightness, contrast, colour, sharpness) ---------- */
+const ADJ_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>';
+const ADJ = [['brightness', 'Brightness', -60, 60], ['contrast', 'Contrast', -60, 60], ['saturation', 'Colour', -100, 100], ['sharpness', 'Sharpness', 0, 100]];
+const adjustBtn = j => `<button class="btn quiet" data-act="adjust" data-key="${j.key}">${ADJ_ICON}${j.pdf ? 'Adjust photo' : 'Adjust photo / colours'}</button>`;
+const adjOv = document.createElement('div');
+adjOv.className = 'overlay';
+adjOv.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="adjTitle" style="width:min(860px,100%)">
+  <div class="dhead"><h3 id="adjTitle">Adjust card</h3><button class="btn quiet icon" data-close aria-label="Close">${SVG.x}</button></div>
+  <div class="dbody" id="adjBody"></div><div class="dfoot" id="adjFoot"></div></div>`;
+document.body.appendChild(adjOv);
+adjOv.addEventListener('click', e => { if (e.target === adjOv || e.target.closest('[data-close]')) adjOv.classList.remove('open'); });
+let aj = null;                                   // {j, side, scope, box, p}
+function openAdjust(j, side) {
+  side = side || curSide(j);
+  const saved = (j.adjust || {})[side] || {};
+  const box = j.pdf ? null : saved.box || (j.photoBox || {})[side] || null;
+  // laminated Aadhaar (vector PDF): always the face only, found by the server on every sheet
+  aj = {j, side, box, scope: j.pdf ? 'photo' : saved.box === null && saved.brightness !== undefined ? 'card' : (box ? 'photo' : 'card'),
+        p: Object.fromEntries(ADJ.map(([k]) => [k, +saved[k] || 0]))};
+  adjOv.classList.add('open'); drawAdjust();
+}
+let adjTimer = null;
+const adjUrl = () => `/api/adjust/${aj.j.job}/${encodeURIComponent(aj.side)}?` + new URLSearchParams({...aj.p,
+  box: aj.scope === 'photo' && aj.box ? aj.box.join(',') : 'card', t: Date.now()});
+const adjPreview = (wait = 140) => { clearTimeout(adjTimer); adjTimer = setTimeout(() => { const im = $('#adjImg'); if (im) im.src = adjUrl(); }, wait); };
+function placeBox() {
+  const el = $('#adjBox'), im = $('#adjImg'); if (!el || !im) return;
+  const show = aj.scope === 'photo' && aj.box;
+  el.hidden = !show; if (!show) return;
+  const k = im.clientWidth / 1016, [x0, y0, x1, y1] = aj.box;
+  Object.assign(el.style, {left: x0 * k + 'px', top: y0 * k + 'px', width: (x1 - x0) * k + 'px', height: (y1 - y0) * k + 'px'});
+}
+function drawAdjust() {
+  const {j, side} = aj, changed = !!(j.adjust || {})[side];
+  $('#adjTitle').textContent = `Adjust · ${j.details?.name || j.source} · ${side}`;
+  $('#adjBody').innerHTML = `<div class="adj-wrap">
+      <div><div class="adj-img ${aj.scope === 'photo' && !j.pdf ? 'draw' : ''}" id="adjWrap"><img id="adjImg" alt="Preview of the ${esc(side)} side" src="${adjUrl()}"><div class="adj-box" id="adjBox" hidden></div></div>
+        <p class="hint" style="margin:6px 0 0">${j.pdf ? 'Only the face changes &ndash; on <b>every sheet</b> (Full, Both, Small). Text, QR and background stay as they are.'
+          : aj.scope === 'photo' ? 'Only the marked area changes. <b>Drag on the card</b> to mark a different area.' : 'The whole card changes.'}</p></div>
+      <div class="adj-ctl">
+        ${j.sides.length > 1 ? `<div><span class="t">${j.pdf ? 'Preview sheet' : 'Side'}</span><div class="seg" id="adjSide">${j.sides.map(s => `<button data-v="${esc(s)}" aria-pressed="${s === side}">${esc(s)}${!j.pdf && (j.adjust || {})[s] ? ' •' : ''}</button>`).join('')}</div></div>` : ''}
+        ${j.pdf ? '' : `<div><span class="t">Change</span><div class="seg" id="adjScope"><button data-v="photo" aria-pressed="${aj.scope === 'photo'}">Photo only</button><button data-v="card" aria-pressed="${aj.scope === 'card'}">Whole card</button></div></div>`}
+        ${ADJ.map(([k, label, lo, hi]) => `<label class="adj-row"><span>${label}</span><input type="range" min="${lo}" max="${hi}" step="1" value="${aj.p[k]}" data-adj="${k}" aria-label="${label}"><output id="adjO_${k}">${aj.p[k] > 0 ? '+' : ''}${aj.p[k]}</output></label>`).join('')}
+        <button class="btn quiet" id="adjZero" style="justify-self:start">Set sliders to 0</button>
+        ${changed ? '<p class="hint" style="margin:0">This side has been adjusted. <b>Reset to original</b> brings back the untouched card.</p>' : ''}
+      </div></div>`;
+  $('#adjFoot').innerHTML = `${changed ? '<button class="btn" id="adjReset">Reset to original</button>' : ''}<span style="flex:1"></span>
+    <button class="btn" data-close>Cancel</button><button class="btn primary" id="adjSave">Save</button>`;
+  const im = $('#adjImg'); im.onload = placeBox; if (im.complete) placeBox();
+  document.querySelectorAll('#adjSide button').forEach(b => b.onclick = () => openAdjust(j, b.dataset.v));
+  document.querySelectorAll('#adjScope button').forEach(b => b.onclick = () => {
+    aj.scope = b.dataset.v; if (aj.scope === 'photo' && !aj.box) toast('Drag on the card to mark the photo');
+    drawAdjust();
+  });
+  document.querySelectorAll('[data-adj]').forEach(r => r.oninput = () => {
+    aj.p[r.dataset.adj] = +r.value; $('#adjO_' + r.dataset.adj).textContent = (+r.value > 0 ? '+' : '') + r.value; adjPreview();
+  });
+  $('#adjZero').onclick = () => { ADJ.forEach(([k]) => aj.p[k] = 0); drawAdjust(); };
+  // drag a rectangle on the card = the area to change
+  const wrap = $('#adjWrap'); let start = null;
+  const pt = e => { const r = im.getBoundingClientRect(), k = 1016 / r.width;
+    return [Math.max(0, Math.min(1016, (e.clientX - r.left) * k)), Math.max(0, Math.min(638, (e.clientY - r.top) * k))]; };
+  wrap.onpointerdown = e => { if (aj.scope !== 'photo' || j.pdf) return; start = pt(e); wrap.setPointerCapture(e.pointerId); };
+  wrap.onpointermove = e => { if (!start) return; const [x, y] = pt(e);
+    aj.box = [Math.min(start[0], x), Math.min(start[1], y), Math.max(start[0], x), Math.max(start[1], y)].map(Math.round); placeBox(); };
+  wrap.onpointerup = () => { if (!start) return; start = null;
+    if (aj.box && (aj.box[2] - aj.box[0] < 12 || aj.box[3] - aj.box[1] < 12)) aj.box = (j.photoBox || {})[side] || null;
+    placeBox(); adjPreview(0); };
+  const done = (r, msg) => { Object.assign(j, {adjust: r.adjust || {}, v: r.v, saved: false}); render(); toast(msg); };
+  $('#adjSave').onclick = async () => {
+    if (aj.scope === 'photo' && !aj.box && !j.pdf) { toast('Drag on the card to mark the photo, or choose Whole card', {error: true}); return; }
+    const b = $('#adjSave'); b.disabled = true; b.textContent = 'Saving…';
+    try { done(await api(`/api/adjust/${j.job}`, {side, ...aj.p, box: aj.scope === 'photo' ? aj.box : null}), j.pdf ? 'Face adjusted on every sheet' : `${side} adjusted`); adjOv.classList.remove('open'); }
+    catch (e) { toast(e.message, {error: true}); b.disabled = false; b.textContent = 'Save'; }
+  };
+  if ($('#adjReset')) $('#adjReset').onclick = async () => {
+    try { done(await api(`/api/adjust/${j.job}`, {side, reset: true}), `${side} reset to the original`); openAdjust(j, side); }
+    catch (e) { toast(e.message, {error: true}); }
+  };
+}
+addEventListener('resize', () => { if (adjOv.classList.contains('open')) placeBox(); });
 
 /* ---------- events ---------- */
 const byKey = k => jobs.find(j => j.key === k);
@@ -1118,6 +1447,7 @@ function openLightbox(j, side) {
   document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s)); $('#lbTitle').textContent = `${j.details?.name || j.source}${j.ref ? ' · ' + j.ref : ''}`;
   showLb(side || curSide(j)); $('#lightbox').classList.add('open');
 }
+$('#lbAdj').onclick = () => { $('#lightbox').classList.remove('open'); openAdjust(lbJob, $('#lbImg').dataset.side); };
 function showLb(s) { $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
   document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); }); }
 document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
@@ -1130,13 +1460,17 @@ $('#results').addEventListener('submit', e => {
 $('#results').addEventListener('input', e => {
   const i = e.target.closest('input[data-side]'); if (!i) return;
   const j = byKey(i.dataset.key); j.names[i.dataset.side] = i.value; j.edited[i.dataset.side] = true;
+  if (j.job) persistNames(j);
 });
 $('#results').addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const j = byKey(b.dataset.key); if (!j) return;
   const act = b.dataset.act;
   if (act !== 'zoom') e.stopPropagation();
-  if (act === 'flip') {
+  if (act === 'adjust') openAdjust(j);
+  else if (act === 'epdsfill') fillFromEpds(j, b.closest('.rc-edit'));
+  else if (act === 'select') { sel = b.checked ? [...sel.filter(k => k !== j.key), j.key] : sel.filter(k => k !== j.key); render(); }
+  else if (act === 'flip') {
     if (isSheet(j)) { const i = j.sides.indexOf(curSide(j)); j.side = j.sides[(i + 1) % j.sides.length]; }
     else j.side = j.side === 'Back' ? 'Front' : 'Back';
     render();
@@ -1147,8 +1481,13 @@ $('#results').addEventListener('click', async e => {
   else if (act === 'save') saveItems(itemsOf(j));
   else if (act === 'dl') downloadOne(j, b.dataset.side);
   else if (act === 'zip') downloadZip(itemsOf(j), baseName(j));
-  else if (act === 'more') { j.open = !j.open; render(); }
-  else if (act === 'remove') { jobs = jobs.filter(x => x !== j); render(); }
+  else if (act === 'a4') downloadA4(j);
+  else if (act === 'more') {
+    const open = !j.open;
+    jobs.forEach(o => { o.open = false; });                 // only one options panel open at a time
+    j.open = open; render();
+  }
+  else if (act === 'remove') deleteJobs([j], `the card of ${j.details?.name || j.source}`);
   else if (act === 'plugin') { const pa = CPS.rowActions.find(a => a.id === b.dataset.pa); if (pa) try { pa.run(CPS.jobView(j)); } catch (err) { toast(err.message, {error: true}); } }
   else if (act === 'rcup' || act === 'rcdown') {
     const row = b.closest('.rc-row'), sib = act === 'rcup' ? row.previousElementSibling : row.nextElementSibling;
@@ -1176,7 +1515,7 @@ $('#results').addEventListener('click', async e => {
 });
 
 render();
-loadSettings().then(render).then(loadPlugins).then(route).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
+loadSettings().then(render).then(loadHistory).then(loadPlugins).then(route).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
 </script>
 </body>
 </html>

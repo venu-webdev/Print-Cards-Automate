@@ -274,10 +274,13 @@ def _rotate(img, deg):
 
 def _place_tray(dc, cfg, slot):
     """Card rect in device px for Photo+-style tray printing (A4 page, tray square at
-    cfg tray_x_mm / tray_y_mm from the page's top-left, card in slot 1 or 2)."""
+    cfg tray_x_mm / tray_y_mm from the page's top-left, card in slot 1 or 2).
+    Slot 2 can get its own small correction (slot2_dx_mm / slot2_dy_mm) on top."""
     dx, dy = dc.GetDeviceCaps(LOGPIXELSX), dc.GetDeviceCaps(LOGPIXELSY)
     ox, oy = dc.GetDeviceCaps(PHYSICALOFFSETX), dc.GetDeviceCaps(PHYSICALOFFSETY)
     sx, sy = SLOT_POS_MM.get(slot, SLOT_POS_MM[1])
+    if slot == 2:
+        sx, sy = sx + cfg.get("slot2_dx_mm", 0.0), sy + cfg.get("slot2_dy_mm", 0.0)
     s = cfg.get("scale_pct", 100) / 100
     w, h = CARD_SLOT_MM[0] * s, CARD_SLOT_MM[1] * s
     bleed = cfg.get("bleed_mm", 0.25) if cfg.get("borderless", True) else 0.0
@@ -309,10 +312,15 @@ def _place(dc, cfg, rotated):
 
 
 def print_images(printer, saved_devmode, cfg, pages, doc_name="Card Print Studio"):
-    """pages: list of PIL images, each printed on its own page (one card).
+    """pages: one entry per tray pass (= one printed page). Each entry is either a PIL image
+    (one card, in cfg['slot']) or a dict {slot: PIL image} to fill slot 1 and/or 2 at once.
     cfg['mode'] 'auto' = Photo+-compatible card settings, 'custom' = saved Epson preferences."""
     if not HAVE_WIN32:
         raise PrintError("pywin32 is not installed")
+    auto = cfg.get("mode", "auto") == "auto"
+    pages = [p if isinstance(p, dict) else {int(cfg.get("slot", 1)): p} for p in pages]
+    if not auto and any(len(p) > 1 for p in pages):
+        raise PrintError("Printing two cards at once needs the Automatic (Photo+ compatible) card settings.")
     try:
         if cfg.get("mode", "auto") == "auto":
             dm, _ = card_settings(printer, cfg.get("borderless", True), saved_devmode)
@@ -325,14 +333,14 @@ def print_images(printer, saved_devmode, cfg, pages, doc_name="Card Print Studio
     rot = int(cfg.get("rotation", 90)) % 360
     try:
         dc.StartDoc(doc_name)
-        for img in pages:
+        for page in pages:
             dc.StartPage()
-            img = _rotate(img.convert("RGB"), rot)
-            if cfg.get("mirror"):
-                img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            rect = (_place_tray(dc, cfg, int(cfg.get("slot", 1))) if cfg.get("mode", "auto") == "auto"
-                    else _place(dc, cfg, rot in (90, 270)))
-            ImageWin.Dib(img).draw(dc.GetHandleOutput(), rect)
+            for slot, img in sorted(page.items()):
+                img = _rotate(img.convert("RGB"), rot)
+                if cfg.get("mirror"):
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                rect = _place_tray(dc, cfg, slot) if auto else _place(dc, cfg, rot in (90, 270))
+                ImageWin.Dib(img).draw(dc.GetHandleOutput(), rect)
             dc.EndPage()
         dc.EndDoc()
     except Exception as e:
@@ -345,7 +353,7 @@ def print_images(printer, saved_devmode, cfg, pages, doc_name="Card Print Studio
         dc.DeleteDC()
 
 
-def alignment_card(cfg, dpi=300):
+def alignment_card(cfg, dpi=300, label=""):
     """Card-size test pattern: outline, 2 mm safe line, centre cross, mm ticks."""
     w, h = round(cfg["card_w_mm"] / 25.4 * dpi), round(cfg["card_h_mm"] / 25.4 * dpi)
     im = Image.new("RGB", (w, h), "white")
@@ -366,6 +374,8 @@ def alignment_card(cfg, dpi=300):
     d.polygon([(w / 2 - 4 * mm, 9 * mm), (w / 2 + 4 * mm, 9 * mm), (w / 2, 5 * mm)], fill=(234, 106, 31))
     d.text((w / 2 - 6 * mm, 10 * mm), "TOP EDGE", fill=(0, 0, 0))
     d.text((6 * mm, 6 * mm), "Card Print Studio - alignment test", fill=(0, 0, 0))
+    if label:
+        d.text((w / 2 - 6 * mm, h / 2 + 3 * mm), label, fill=(0, 0, 0))
     return im
 
 

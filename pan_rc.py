@@ -183,13 +183,63 @@ def _transparent_ink(rgb):
     return np.dstack([np.clip(col, 0, 255), alpha * 255]).round().astype(np.uint8)
 
 
+# The shop's wish (marked on a card): the signature sits in a box right above the printed
+# "हस्ताक्षर / Signature" label - the box is SIGN_BOX_W x the label's width, SIGN_BOX_H of the card height,
+# its bottom SIGNATURE_GAP_PT above the label. The signature is trimmed to its ink, fitted into the box
+# (shape kept, never enlarged), centred on the label, and its strokes made SIGNATURE_SOLID x stronger.
+SIGN_BOX_W = 1.7
+SIGN_BOX_H = 0.078
+SIGNATURE_GAP_PT = 1.7         # 0.6 mm between the signature and the label
+SIGNATURE_SOLID = 3.0          # faint e-PAN signatures (ink ~40 % opaque) -> solid
+SIGNATURE_SCALE = 0.7          # only if the label is not found: 70 % size at the old spot
+
+
+def _label_box(page, raw, card_rect):
+    """The printed 'हस्ताक्षर / Signature' label under the signature spot -> Rect (pt) or None.
+    It is part of the card artwork, so it is found by its dark lettering in a render (the old
+    signature has been blanked by then, so only the label is dark there)."""
+    w = card_rect.width
+    clip = pymupdf.Rect(card_rect.x0 + 0.22 * w, raw.y0 + raw.height * 0.3,
+                        card_rect.x0 + 0.72 * w, min(card_rect.y1, raw.y1 + raw.height * 1.6)) & page.rect
+    pix = page.get_pixmap(dpi=300, clip=clip, alpha=False)
+    dark = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).mean(axis=2) < 140
+    per_row = dark.sum(axis=1)
+    peak = int(per_row.argmax())
+    if per_row[peak] < 20:                             # no line of lettering here
+        return None
+    # the label = the block of rows around the densest row; the card's watermark only gives a few
+    # stray dark pixels per row (<= 7 measured) against 70-100 for the lettering
+    keep = per_row >= max(8, 0.08 * per_row[peak])
+    top = bottom = peak
+    while top > 0 and keep[top - 1]:
+        top -= 1
+    while bottom < len(keep) - 1 and keep[bottom + 1]:
+        bottom += 1
+    per_col = dark[top:bottom + 1].sum(axis=0)
+    cols = np.nonzero(per_col >= 2)[0]
+    if len(cols) < 10:
+        return None
+    # columns in groups (word gaps up to 25 px = 2 mm allowed); the label is the group with most ink
+    groups, start = [], cols[0]
+    for a, b in zip(cols[:-1], cols[1:]):
+        if b - a > 25:
+            groups.append((start, a)); start = b
+    groups.append((start, cols[-1]))
+    c0, c1 = max(groups, key=lambda g: per_col[g[0]:g[1] + 1].sum())
+    k = clip.width / pix.width
+    return pymupdf.Rect(clip.x0 + c0 * k, clip.y0 + top * k, clip.x0 + (c1 + 1) * k, clip.y0 + (bottom + 1) * k)
+
+
 def clear_signature_boxes(doc, page, card_rect):
-    """Signature / thumb-impression images on the card: remove their white box."""
+    """Signature / thumb-impression images on the card: remove their white box and draw them at
+    SIGNATURE_SCALE of their size, moved by SIGNATURE_SHIFT_X. The original image is blanked and a
+    transparent copy is placed on the page at the new spot (vector page, so it stays sharp and
+    nothing gets clipped)."""
     done = 0
     for img in page.get_images(full=True):
         xref = img[0]
-        for r in page.get_image_rects(xref):
-            r = r * page.rotation_matrix
+        for raw in page.get_image_rects(xref):            # the same image can also be in the letter part
+            r = raw * page.rotation_matrix
             if not card_rect.intersects(r) or r.get_area() > 0.25 * card_rect.get_area():
                 continue
             if r.width / max(r.height, 1e-6) < 1.8:      # photos are portrait, QR square
@@ -200,9 +250,30 @@ def clear_signature_boxes(doc, page, card_rect):
             if pix.alpha:
                 pix = pymupdf.Pixmap(pix, 0)
             rgb = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3)
-            rgba = _transparent_ink(rgb)
-            page.replace_image(xref, pixmap=pymupdf.Pixmap(
-                pymupdf.csRGB, pix.width, pix.height, rgba.tobytes(), True))
+            rgba = _transparent_ink(rgb)                            # raw = its spot ON THE CARD (unrotated)
+            rgba[..., 3] = np.clip(rgba[..., 3].astype(np.float32) * SIGNATURE_SOLID, 0, 255).astype(np.uint8)
+            blank = np.zeros((pix.height, pix.width, 4), np.uint8)  # the old spot becomes empty
+            page.replace_image(xref, pixmap=pymupdf.Pixmap(pymupdf.csRGB, pix.width, pix.height, blank.tobytes(), True))
+            ys, xs = np.nonzero(rgba[..., 3] > 25)                  # trim to the ink
+            if not len(xs):
+                break
+            ink = np.ascontiguousarray(rgba[max(0, ys.min() - 1):ys.max() + 2, max(0, xs.min() - 1):xs.max() + 2])
+            ih, iw = ink.shape[:2]
+            # size of the ink as it appeared on the e-PAN (the PDF draws the image stretched: keep that look)
+            dw, dh = iw * raw.width / pix.width, ih * raw.height / pix.height
+            label = _label_box(page, raw, card_rect)
+            if label is not None:
+                bw, bh = label.width * SIGN_BOX_W, card_rect.height * SIGN_BOX_H
+                s = min(1.0, bw / dw, bh / dh)                       # fit the box, shape kept, never enlarged
+                w, h = dw * s, dh * s
+                cx, y1 = (label.x0 + label.x1) / 2, label.y0 - SIGNATURE_GAP_PT
+                rect = pymupdf.Rect(cx - w / 2, y1 - h, cx + w / 2, y1)
+            else:                                                    # label not found: smaller, same spot
+                w, h = dw * SIGNATURE_SCALE, dh * SIGNATURE_SCALE
+                cx, cy = (raw.x0 + raw.x1) / 2, (raw.y0 + raw.y1) / 2
+                rect = pymupdf.Rect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+            page.insert_image(rect, keep_proportion=False,
+                              pixmap=pymupdf.Pixmap(pymupdf.csRGB, iw, ih, ink.tobytes(), True))
             done += 1
             break
     return done
@@ -296,8 +367,134 @@ def apply_hologram(img):
     return out.convert("RGB")
 
 
+# ------------------------------------------------------------------ card pictures on an A4 sheet
+# Newer RC prints (Parivahan, made with TCPDF - e.g. PDF_AP40EE6247.pdf) and similar PDFs: one A4 page
+# with the front and back as two high-resolution card PICTURES side by side (86 x 54 mm each, ~600 dpi,
+# rounded corners on white, a thin outline around each) and no text at all.
+PAIR_W_MM = (70, 100)          # each picture is about a card wide
+
+
+def card_pictures(doc):
+    """[(xref, rect), (xref, rect)] = front, back (reading order) when the PDF is such a sheet, else None."""
+    page = doc[0]
+    if len(page.get_text("words")) > 30:          # real text -> a normal card PDF, not a picture sheet
+        return None
+    found = []
+    for img in page.get_images(full=True):
+        for r in page.get_image_rects(img[0]):
+            r = r * page.rotation_matrix
+            w_mm, ar = r.width / 72 * 25.4, r.width / max(r.height, 1e-6)
+            if PAIR_W_MM[0] <= w_mm <= PAIR_W_MM[1] and 1.4 < ar < 1.8:
+                found.append((img[0], r))
+    if len(found) < 2:
+        return None
+    found.sort(key=lambda t: (round(t[1].y0 / 36), t[1].x0))   # rows (half-inch bands), then left -> right
+    a, b = found[:2]
+    if abs(a[1].width - b[1].width) > 0.1 * a[1].width:          # front and back are the same size
+        return None
+    return [a, b]
+
+
+WHITE = 250                   # paper white around the card in the picture (the card itself is <= ~245)
+
+
+def _trim_white(rgb):
+    """Cut off pure-white strips along the picture's edges (not part of the card)."""
+    g = rgb.mean(2)
+    white_row, white_col = (g >= WHITE).mean(1) > 0.97, (g >= WHITE).mean(0) > 0.97
+    def run(flags):
+        n = 0
+        while n < len(flags) // 4 and flags[n]:
+            n += 1
+        return n
+    t, b = run(white_row), run(white_row[::-1])
+    l, r = run(white_col), run(white_col[::-1])
+    if any((t, b, l, r)):                       # +1 px: the anti-aliased step from white to card
+        t, b, l, r = [k + 1 if k else 0 for k in (t, b, l, r)]
+    return rgb[t:rgb.shape[0] - b, l:rgb.shape[1] - r], (t, b, l, r)
+
+
+def _edge_band(med, max_px):
+    """med: row (or column) medians from the edge inward. Width of a thin uniform strip at the edge that
+    ends in a sharp step (an outline, or a lighter strip outside the card), else 0. A smooth colour
+    gradient has no step, so it is never cut."""
+    for k in range(1, max_px):
+        band = med[:k]
+        if band.max() - band.min() <= 3 and abs(float(med[k]) - float(band.mean())) >= 6 \
+                and abs(float(med[k + 3]) - float(med[k])) <= 3:       # the card continues evenly after the step
+            return k
+    return 0
+
+
+def _trim_bands(rgb, max_px=40):
+    g = rgb.mean(2)
+    t = _edge_band(np.median(g, 1), max_px)
+    b = _edge_band(np.median(g, 1)[::-1], max_px)
+    l = _edge_band(np.median(g, 0), max_px)
+    r = _edge_band(np.median(g, 0)[::-1], max_px)
+    return rgb[t:rgb.shape[0] - b, l:rgb.shape[1] - r], (t, b, l, r)
+
+
+def _to_card_shape(rgb):
+    """Bring to the card's proportions WITHOUT cutting anything off: the short side is extended with
+    the card's own edge colours (same idea as make_cards.pad_edges)."""
+    rim = 3                                     # the outermost pixels are often a 1-px line / anti-alias step:
+    h, w = rgb.shape[:2]                        # extend from just inside them, not from them
+    if w / h > ASPECT:                          # too wide -> add rows (top and bottom)
+        add = round(w / ASPECT) - h + 2 * rim
+        core = rgb[rim:h - rim]
+        return cv2.copyMakeBorder(core, add // 2, add - add // 2, 0, 0, cv2.BORDER_REPLICATE)
+    add = round(h * ASPECT) - w                 # too tall -> add columns (left and right)
+    if add <= 0:
+        return rgb
+    core = rgb[:, rim:w - rim]
+    add += 2 * rim
+    return cv2.copyMakeBorder(core, 0, 0, add // 2, add - add // 2, cv2.BORDER_REPLICATE)
+
+
+def _white_corner_radius(rgb, ppm):
+    """Rounded corners left white in the picture -> radius in mm (0 = square card)."""
+    g = rgb.mean(2)
+    h, w = g.shape
+    ks = []
+    for y, x, dy, dx in ((0, 0, 1, 1), (0, w - 1, 1, -1), (h - 1, 0, -1, 1), (h - 1, w - 1, -1, -1)):
+        k = 0
+        while k < min(h, w) // 4 and g[y + dy * k, x + dx * k] >= WHITE:
+            k += 1
+        ks.append(k)
+    k = float(np.median(ks))
+    return 0.0 if k <= 2 else k * np.sqrt(2) / (np.sqrt(2) - 1) / ppm
+
+
+def card_picture_images(doc):
+    """Front / back straight from the embedded pictures (their own ~600 dpi, no re-rendering): white strips
+    trimmed, short side extended with the card's background (nothing cut off), white corners filled."""
+    out = []
+    for side, (xref, rect) in zip(("Front", "Back"), card_pictures(doc)):
+        pix = pymupdf.Pixmap(doc, xref)
+        if pix.n - pix.alpha != 3:
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+        if pix.alpha:
+            pix = pymupdf.Pixmap(pix, 0)
+        rgb = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).copy()
+        rgb, cut = _trim_white(rgb)
+        rgb, band = _trim_bands(rgb)                  # old outline / light strip outside the card
+        cut = tuple(a + b for a, b in zip(cut, band))
+        ppm = pix.width / (rect.width / 72 * 25.4)
+        radius = _white_corner_radius(rgb, ppm)
+        if radius:
+            rgb, _ = _fill_corners(rgb, ppm, radius)
+        rgb = _to_card_shape(np.ascontiguousarray(rgb))
+        print(f"    {side}: card picture {pix.width}x{pix.height} px, white trimmed (t,b,l,r) {cut}"
+              + (f", corners r {radius:.1f} mm filled" if radius else ""))
+        out.append((side, Image.fromarray(rgb).resize((OUT_W, OUT_H), Image.LANCZOS)))
+    return out
+
+
 # ------------------------------------------------------------------ RC
 def rc_card_images(doc):
+    if card_pictures(doc):                          # new layout: both sides as pictures on one A4 page
+        return card_picture_images(doc)
     out = []
     names = ["Front", "Back"]
     for i, page in enumerate(doc):

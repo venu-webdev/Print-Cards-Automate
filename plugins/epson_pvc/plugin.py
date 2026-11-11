@@ -26,10 +26,12 @@ DEFAULT = {
     "tray_x_mm": 0.0,         # Photo+'s 150 mm tray square starts at the A4 page corner (measured from a real Photo+ job)
     "tray_y_mm": 0.0,
     "bleed_mm": 0.25,         # borderless: image spills this far past each card edge (measured in Photo+'s job)
-    "slot": 1,                # card position on the tray (Photo+ has 2)           # card printed portrait like Photo+'s ID card page (clockwise degrees)
+    "slot": 1,                # card position on the tray for single cards (Photo+ has 2)
+    "slot2_dx_mm": 0.0,       # extra fine-tune for slot 2 only (+ right / + down), after an alignment test
+    "slot2_dy_mm": 0.0,
     "mirror": False,
 }
-NUM = {"tray_x_mm": (-20, 80), "tray_y_mm": (-20, 160), "bleed_mm": (0, 1.5), "slot": (1, 2), "card_w_mm": (40, 120), "card_h_mm": (30, 90), "offset_x_mm": (-20, 20),
+NUM = {"slot2_dx_mm": (-5, 5), "slot2_dy_mm": (-5, 5), "tray_x_mm": (-20, 80),"tray_y_mm": (-20, 160), "bleed_mm": (0, 1.5), "slot": (1, 2), "card_w_mm": (40, 120), "card_h_mm": (30, 90), "offset_x_mm": (-20, 20),
        "offset_y_mm": (-20, 20), "scale_pct": (90, 110)}
 PRINT_LOCK = threading.Lock()
 
@@ -111,31 +113,45 @@ def register(host):
 
     @bp.post("/print")
     def do_print():
+        """One tray pass per copy. Body:
+             {"cards": [{"slot": 1, "job": .., "side": "Front"}, {"slot": 2, "job": .., "side": "Front"}], "copies": n}
+           or the old single-card form {"job": .., "side": ..}, which uses the configured slot."""
         body = request.get_json(force=True) or {}
         c = cfg()
         if not c.get("printer"):
             return jsonify({"error": "No printer chosen"}), 400
-        job, side = str(body.get("job", "")), body.get("side", "Front")
+        cards = body.get("cards") or [{"slot": int(c.get("slot", 1)), "job": body.get("job"), "side": body.get("side", "Front")}]
+        page = {}
+        for card in cards[:2]:
+            slot, job, side = int(card.get("slot", 1)), str(card.get("job", "")), card.get("side", "Front")
+            if slot not in (1, 2) or slot in page:
+                return jsonify({"error": "Each tray slot can hold one card"}), 400
+            if side not in host.job_info(job)["sides"]:
+                abort(404)
+            page[slot] = _img(job, side)
+        if not page:
+            return jsonify({"error": "Nothing to print"}), 400
         copies = max(1, min(50, int(body.get("copies", 1) or 1)))
-        if side not in host.job_info(job)["sides"]:
-            abort(404)
-        pages = [_img(job, side)] * copies
         name = re.sub(r"[^\w\- ]", "", str(body.get("name") or "card"))[:60]
+        sides = "+".join(sorted({str(x.get("side", "Front")) for x in cards[:2]}))
         try:
             with PRINT_LOCK:
-                winprint.print_images(c["printer"], c.get("devmode"), c, pages, f"PVC card - {name} - {side}")
+                winprint.print_images(c["printer"], c.get("devmode"), c, [page] * copies,
+                                      f"PVC card - {name} - {sides}" + (" - 2 slots" if len(page) > 1 else ""))
         except winprint.PrintError as e:
             return jsonify({"error": str(e)}), 500
-        return jsonify({"ok": True, "printed": len(pages), "side": side})
+        return jsonify({"ok": True, "printed": copies, "cards": copies * len(page), "slots": sorted(page)})
 
     @bp.post("/test")
     def test():
         c = cfg()
         if not c.get("printer"):
             return jsonify({"error": "No printer chosen"}), 400
+        slots = [s for s in (request.get_json(force=True, silent=True) or {}).get("slots", []) if s in (1, 2)]
+        page = {s: winprint.alignment_card(c, label=f"SLOT {s}") for s in slots} if slots else winprint.alignment_card(c)
         try:
             with PRINT_LOCK:
-                winprint.print_images(c["printer"], c.get("devmode"), c, [winprint.alignment_card(c)], "PVC card - alignment test")
+                winprint.print_images(c["printer"], c.get("devmode"), c, [page], "PVC card - alignment test")
         except winprint.PrintError as e:
             return jsonify({"error": str(e)}), 500
         return jsonify({"ok": True})

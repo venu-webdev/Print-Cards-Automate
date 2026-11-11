@@ -624,7 +624,7 @@ def aadhaar_cutout_images(doc):
 # ===================================================================== entry points
 CARD_TYPES = {"auto": "Auto-detect", "dl": "Driving Licence", "voter": "Voter ID (e-EPIC)",
               "aadhaar": "Aadhaar (PVC)", "aadhaar_lam": "Aadhaar Laminated (A4)",
-              "pan": "PAN Card", "ration": "Ration Card", "rc": "Vehicle RC"}
+              "pan": "PAN Card", "ration": "Ration Card", "rc": "Vehicle RC", "abha": "ABHA Card"}
 
 
 class PasswordNeeded(ValueError):
@@ -651,8 +651,13 @@ def open_pdf(pdf_source, password=None, filename=None):
 
 
 def detect_type(doc):
+    import abha_card
     import pan_rc
+    if abha_card.is_abha(doc):          # before the size check below: the ABHA page is wide like a voter sheet
+        return "abha"
     if pan_rc.is_rc(doc):
+        return "rc"
+    if pan_rc.card_pictures(doc):       # front + back as two card pictures on A4, no text (new RC print)
         return "rc"
     if is_aadhaar(doc):
         return "aadhaar"
@@ -670,7 +675,7 @@ def export_name(card_type, stem, side, details=None, pattern=None):
     return card_details.export_name(pattern or card_details.DEFAULT_PATTERN, details, side, stem)
 
 
-def process_document_full(pdf_source, card_type="auto", password=None, filename=None, rc_no=None):
+def process_document_full(pdf_source, card_type="auto", password=None, filename=None, rc_no=None, epds_text=None):
     """Returns (card_type, [(side, PIL.Image), ...], details) - details: holder name / ID."""
     import card_details
     doc = open_pdf(pdf_source, password, filename)
@@ -680,11 +685,12 @@ def process_document_full(pdf_source, card_type="auto", password=None, filename=
             raise ValueError("Ration Card needs the head of family's e-Aadhaar PDF")
         if not rc_no:
             raise ValueError("Enter the rice card (RC) number")
-        data, details, _ = ration_card.build_data(rc_no, doc)
+        data, details, _ = ration_card.build_data(rc_no, doc, epds_text)
         front, back = ration_card.render(data)
         import avatar
         details["_photo"] = avatar.holder_photo(doc, "aadhaar")
         details["_ration"] = data                              # kept so names can be edited later
+        details["_photo_box"] = ration_card.photo_box() if data.get("photo") is not None else None
         print(f"    ration card: {details['name']}  RC {details['id']}")
         return "ration", [("Front", front), ("Back", back)], details
     if filename is None and not isinstance(pdf_source, (bytes, bytearray)):
@@ -704,6 +710,10 @@ def process_document_full(pdf_source, card_type="auto", password=None, filename=
     ctype, cards = _make_cards(doc, card_type)
     import avatar
     details["_photo"] = avatar.holder_photo(doc, ctype, cards[0][1] if cards else None)
+    try:                                      # where the photo is on the front (for the Adjust editor)
+        details["_photo_box"] = avatar.photo_box(doc, ctype, cards[0][1]) if cards else None
+    except Exception as e:
+        print(f"    (photo position not found: {e})")
     return ctype, cards, details
 
 
@@ -713,7 +723,134 @@ def process_document(pdf_source, card_type="auto", password=None, filename=None)
     return t, cards
 
 
+# Backs of DL / RC: their text runs almost to the card edge (DL "Form 7 Rule 16(2)" 0.6 mm, RC
+# "Registration Authority" 0.7 mm) and gets cut / touches the edge on a borderless PVC print.
+# The back is shrunk to BACK_SCALE and centred; the margin is filled with the card's own background.
+BACK_SCALE = {"dl": 0.93, "rc": 0.93}          # 0.93 -> +3.0 mm left/right, +1.9 mm top/bottom
+
+
+LINE_DARK = 110               # a pixel darker than this belongs to a line / text
+
+
+def _row_background(small):
+    """The card's own background colour for every row, to continue it seamlessly into the margin.
+    The DL / RC backs are shaded top-to-bottom but even from left to right, so each row's typical
+    colour (median across the whole width) is its background - text, lines and their grey soft edges
+    are left out, and a white QR box or a white strip at one edge is too small a part of the row to
+    pull the colour off. Light smoothing between rows only removes noise; the shading is kept."""
+    sh = small.shape[0]
+    a = small[:, 3:-3].astype(np.float32)
+    lum, sat = a.mean(axis=2), a.max(axis=2) - a.min(axis=2)
+    ink = (lum < 150) | ((sat < 20) & (lum < 235))      # text, lines and their grey soft edges (background is bluish)
+    a[ink] = np.nan
+    with np.errstate(all="ignore"):
+        col = np.nanmedian(a, axis=1)                                    # (rows, 3)
+    ok = ~np.isnan(col).any(axis=1) & ((~ink).mean(axis=1) > 0.25)       # rows that are mostly a line: take neighbours
+    ok[:4] = ok[-4:] = False                                             # outermost rows: leftovers of the old frame
+    if not ok.any():
+        return np.repeat(np.float32([[235, 242, 247]]), sh, axis=0)
+    idx = np.arange(sh)
+    # rows suddenly darker than the rows around them = a table line's soft edge across the card -> neighbours
+    lum_rows = np.interp(idx, idx[ok], np.nan_to_num(col[:, :].mean(axis=1))[ok])
+    trend = cv2.medianBlur(np.clip(lum_rows, 0, 255).astype(np.uint8).reshape(sh, 1), 15).reshape(sh).astype(np.float32)
+    ok &= ~(lum_rows < trend - 4)
+    col = np.stack([np.interp(idx, idx[ok], col[ok, c]) for c in range(3)], axis=1).astype(np.float32)
+    return cv2.GaussianBlur(col.reshape(sh, 1, 3), (0, 0), sigmaX=0.1, sigmaY=2.0).reshape(sh, 3)
+
+
+def add_margin(img, scale):
+    """Shrink the card image to `scale`, centred. The freed border gets an even background colour
+    (following the card's vertical gradient), and lines that run to the card's edge (the black line
+    under "DL No") are continued through the border to the edge in one solid colour."""
+    a = np.asarray(img.convert("RGB"))
+    h, w = a.shape[:2]
+    sw, sh = round(w * scale), round(h * scale)
+    small = cv2.resize(a, (sw, sh), interpolation=cv2.INTER_AREA)
+    x0, y0 = (w - sw) // 2, (h - sh) // 2
+    rows = _row_background(small)
+    full_rows = rows[np.clip(np.arange(h) - y0, 0, sh - 1)]              # margin above / below: first / last row
+    out = np.repeat(full_rows[:, None, :], w, axis=1).round().clip(0, 255).astype(np.uint8)
+    out[y0:y0 + sh, x0:x0 + sw] = small                                  # the card itself is untouched
+    # continue edge-to-edge lines: rows whose ink touches the edge and runs on inward; every row of the
+    # line (incl. its soft top / bottom rows) is continued in that row's own colour -> same thickness & shade
+    lum = small.mean(axis=2)
+    for side in ("left", "right"):
+        band = lum[:, :40] if side == "left" else lum[:, -40:][:, ::-1]
+        core = np.nonzero((band[:, :3] < LINE_DARK).all(axis=1) & ((band < LINE_DARK).mean(axis=1) > 0.9))[0]
+        paint = {}
+        for r in core:
+            for rr in range(max(0, r - 3), min(sh, r + 4)):
+                px = small[rr, 3:40] if side == "left" else small[rr, -40:-3]
+                colour = np.median(px, axis=0)
+                if rows[rr].mean() - colour.mean() > 20:                 # clearly part of the line
+                    paint[rr] = colour.round().astype(np.uint8)
+        for rr, colour in paint.items():
+            if side == "left":
+                out[y0 + rr, :x0 + 3] = colour
+            else:
+                out[y0 + rr, x0 + sw - 3:] = colour
+    return Image.fromarray(out)
+
+
+# Cards whose design runs to the very edge (rice card, Aadhaar PVC): BOTH sides are shrunk and centred,
+# and the card's own edge colours are carried out to the new edge on all 4 sides (same spacing as the DL /
+# RC backs: 0.93 -> +3.0 mm left/right, +1.9 mm top/bottom). The rice card applies it in ration_card.render.
+EDGE_SCALE = {"aadhaar": 0.93, "ration": 0.93}
+# Aadhaar: the thin red "UIDAI" micro-text line must not become a solid bar in the margin -> smooth the
+# side colours over this many rows (the rice card's red line under the header SHOULD run on: no smoothing)
+EDGE_SMOOTH = {"aadhaar": 15}
+EDGE_STRIP = (2, 26)          # edge colour = median of this band of pixels in from each edge (skips the
+                              # anti-aliased outermost pixel; wide enough that small text tips don't count)
+
+
+def pad_edges(img, scale, smooth=0):
+    """Shrink the card to `scale`, centred, and fill the freed border by extending the card's edge colours
+    straight outwards (Photoshop-style edge extend): each row continues its left / right edge colour,
+    each column its top / bottom edge colour, corners their corner colour. Colour bands and lines that
+    reach the edge (yellow header, red bands, gradients) therefore run on to the new edge unbroken."""
+    a = np.asarray(img.convert("RGB"))
+    h, w = a.shape[:2]
+    sw, sh = round(w * scale), round(h * scale)
+    small = cv2.resize(a, (sw, sh), interpolation=cv2.INTER_AREA)
+    s0, s1 = EDGE_STRIP
+    edge = small.copy()
+    edge[:, 0] = np.median(small[:, s0:s1], axis=1)
+    edge[:, -1] = np.median(small[:, sw - s1:sw - s0], axis=1)
+    if smooth:
+        k = smooth | 1
+        for c in (0, -1):
+            edge[:, c] = cv2.medianBlur(np.ascontiguousarray(edge[:, c])[:, None], k)[:, 0]
+    top = np.median(small[s0:s1 // 2], axis=0)
+    bot = np.median(small[sh - s1 // 2:sh - s0], axis=0)
+    # top / bottom: smooth along the edge so a letter or emblem tip near the edge leaves no streak
+    edge[0] = cv2.medianBlur(top.astype(np.uint8)[None], 31)[0]
+    edge[-1] = cv2.medianBlur(bot.astype(np.uint8)[None], 31)[0]
+    for (y, x) in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
+        edge[y, x] = (edge[y, 1 if x == 0 else -2].astype(int) + edge[1 if y == 0 else -2, x]) // 2
+    x0, y0 = (w - sw) // 2, (h - sh) // 2
+    out = cv2.copyMakeBorder(edge, y0, h - sh - y0, x0, w - sw - x0, cv2.BORDER_REPLICATE)
+    out[y0:y0 + sh, x0:x0 + sw] = small                                  # the card itself is untouched
+    return Image.fromarray(out)
+
+
+def scale_box(box, scale, size=(OUT_W, OUT_H)):
+    """A box on the full-size card -> where it is after pad_edges(scale)."""
+    w, h = size
+    x0, y0 = (w - round(w * scale)) // 2, (h - round(h * scale)) // 2
+    return [round(x0 + box[0] * scale), round(y0 + box[1] * scale),
+            round(x0 + box[2] * scale), round(y0 + box[3] * scale)]
+
+
 def _make_cards(doc, card_type):
+    t, cards = _make_cards_raw(doc, card_type)
+    if t in BACK_SCALE:
+        cards = [(s, add_margin(im, BACK_SCALE[t]) if s == "Back" else im) for s, im in cards]
+    if t in EDGE_SCALE and t != "ration":
+        cards = [(s, pad_edges(im, EDGE_SCALE[t], EDGE_SMOOTH.get(t, 0))) for s, im in cards]
+    return t, cards
+
+
+def _make_cards_raw(doc, card_type):
     if card_type == "aadhaar_lam":
         if not is_aadhaar(doc):
             raise ValueError("this is not an e-Aadhaar PDF - Aadhaar Laminated needs the UIDAI e-Aadhaar letter")
@@ -729,6 +866,9 @@ def _make_cards(doc, card_type):
         return card_type, out
     if card_type == "aadhaar":
         return card_type, aadhaar_card_images(doc)
+    if card_type == "abha":
+        import abha_card
+        return card_type, abha_card.card_images(doc)
     if card_type in ("pan", "rc"):
         import pan_rc
         return card_type, (pan_rc.pan_card_images(doc) if card_type == "pan" else pan_rc.rc_card_images(doc))

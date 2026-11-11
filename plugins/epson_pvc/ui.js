@@ -24,52 +24,110 @@
   ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-close]')) ov.classList.remove('open'); });
 
   let cur = null, step = 'choose';
-  async function openPrint(j) {
-    cur = j; step = 'choose';
+  // layout: 'one' = one card, 'same' = this card in both slots, 'pair' = two selected cards (slot 1 + slot 2)
+  let opt = {layout: 'one', pair: null, side: 'both', copies: 1};
+  const isPvc = x => x.sides.includes('Front') && !x.pdf;           // not the A4 laminated sheets
+  const nm = x => x.details.name || x.source;
+  // cards for one tray pass of the given side ([] = nothing has that side)
+  function passCards(side) {
+    const one = +(st.slot || 1), list = [];
+    const add = (slot, j) => { if (j && j.sides.includes(side)) list.push({slot, job: j.job, side}); };
+    if (opt.layout === 'one') add(one, cur);
+    else { add(1, cur); add(2, opt.layout === 'same' ? cur : opt.pair); }
+    return list;
+  }
+  async function start() {
+    step = 'choose';
     $('#epBody').innerHTML = '<span class="status"><span class="spin"></span>Checking printer…</span>'; $('#epFoot').innerHTML = '';
     ov.classList.add('open');
     try { await getStatus(); } catch (e) { $('#epBody').innerHTML = `<p class="plug-err">${esc(e.message)}</p>`; return; }
     draw();
   }
+  // row "Print" button: one card (or the same card twice)
+  function openPrint(j) {
+    cur = j; opt = {layout: opt.layout === 'same' ? 'same' : 'one', pair: null, side: 'both', copies: 1};
+    start();
+  }
+  // two ticked cards: first ticked -> slot 1, second -> slot 2
+  function openPair(a, b) {
+    cur = a; opt = {layout: 'pair', pair: b, side: 'both', copies: 1};
+    start();
+  }
   function draw() {
-    const j = cur, s = st, err = problem(s), hasBack = j.sides.includes('Back');
-    const who = esc(j.details.name || j.source) + (j.ref ? ` <span class="hint mono">${esc(j.ref)}</span>` : '');
-    let body = `<div class="holder" style="gap:12px"><img src="/api/image/${j.job}/Front" alt="" style="width:120px;border-radius:6px;border:1px solid var(--line)"><div><b>${who}</b>
-      <div class="hint">${err ? '' : `Printer: <b>${esc(s.printer)}</b>`}${!err && ''}</div></div></div>`;
+    const j = cur, s = st, err = problem(s);
+    const second = opt.layout === 'same' ? j : opt.layout === 'pair' ? opt.pair : null;
+    const hasBack = j.sides.includes('Back') || !!(second && second.sides.includes('Back'));
+    if (!hasBack) opt.side = 'Front';
+    const twoSlots = opt.layout !== 'one', slotOne = +(s.slot || 1);
+    const pair = opt.layout === 'pair';
+    const thumb = (x, n) => `<figure style="margin:0;text-align:center;min-width:0"><img src="/api/image/${x.job}/Front" alt="" style="width:120px;border-radius:6px;border:1px solid var(--line)">
+      <figcaption class="hint" style="font-size:11.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(nm(x))}">Slot ${n}${pair ? ' · ' + esc(nm(x)) : ''}</figcaption></figure>`;
+    const who = pair ? `<b>2 cards</b>` : `<b>${esc(nm(j))}</b>` + (j.ref ? ` <span class="hint mono">${esc(j.ref)}</span>` : '');
+    let body = `<div class="holder" style="gap:12px;align-items:center;flex-wrap:wrap">${thumb(j, twoSlots ? 1 : slotOne)}${second ? thumb(second, 2) : ''}<div><div>${who}</div>
+      ${pair && step === 'choose' ? `<button class="btn quiet" id="epSwap" style="height:28px;padding:0 8px;font-size:12.5px;margin-top:4px" title="Swap which card goes in slot 1 and slot 2">⇄ Swap slots</button>` : ''}
+      <div class="hint">${err ? '' : `Printer: <b>${esc(s.printer)}</b>`}</div></div></div>`;
     let foot = `<a class="btn quiet" href="${BASE}/pdf/${j.job}?name=${encodeURIComponent(j.names.Front || j.source)}" title="Exact card-size PDF (front + back) – e.g. for Epson Photo+">Card PDF</a>`;
+    const pressed = (k, v) => `aria-pressed="${opt[k] === v}"`;
     if (err) {
       body += `<p class="plug-err">${esc(err)}</p><p class="hint">You can still download the card-size PDF and print it from Epson Photo+.</p>`;
     } else if (step === 'choose') {
-      body += `<div><span class="t">Print</span><div class="seg" id="epSide">
-          ${hasBack ? '<button data-v="both" aria-pressed="true">Front, then back</button>' : ''}
-          <button data-v="Front" aria-pressed="${!hasBack}">Front only</button>${hasBack ? '<button data-v="Back" aria-pressed="false">Back only</button>' : ''}</div></div>
-        <div><label class="t" for="epCopies">Copies</label><input class="text" id="epCopies" type="number" min="1" max="50" value="1" style="width:100px"></div>
-        <p class="hint">Click <b>Print</b> first. When the printer’s disc light blinks, put a clean blank PVC card in <b>slot 1</b> of the Disc/ID Card Tray (printable side up) and insert the tray. Keep the tray clean &ndash; borderless printing can leave ink on it.</p>`;
+      const where = twoSlots ? '<b>both slots</b>' : `<b>slot ${slotOne}</b>`;
+      body += `${pair ? '' : `<div><span class="t">Cards on the tray</span><div class="seg" id="epLay">
+          <button data-v="one" ${pressed('layout', 'one')}>One card</button>
+          <button data-v="same" ${pressed('layout', 'same')}>Same card ×2</button></div>
+          <small class="hint" style="display:block;margin-top:4px">For two different people, tick both cards in the list and use <b>Print on PVC</b>.</small></div>`}
+        <div><span class="t">Print</span><div class="seg" id="epSide">
+          ${hasBack ? `<button data-v="both" ${pressed('side', 'both')}>Front, then back</button>` : ''}
+          <button data-v="Front" ${pressed('side', 'Front')}>Front only</button>${hasBack ? `<button data-v="Back" ${pressed('side', 'Back')}>Back only</button>` : ''}</div></div>
+        <div><label class="t" for="epCopies">${twoSlots ? 'Tray passes' : 'Copies'}</label><input class="text" id="epCopies" type="number" min="1" max="50" value="${opt.copies}" style="width:100px">
+          ${twoSlots ? '<small class="hint" style="display:block">Each pass prints 2 cards.</small>' : ''}</div>
+        <p class="hint">Click <b>Print</b> first. When the printer’s disc light blinks, put clean blank PVC card${twoSlots ? 's' : ''} in ${where} of the Disc/ID Card Tray (printable side up) and insert the tray. Keep the tray clean &ndash; borderless printing can leave ink on it.</p>`;
       foot += `<button class="btn" data-close>Cancel</button><button class="btn primary" id="epGo">${ICON}Print</button>`;
     } else if (step === 'flip') {
-      body += `<div class="note" style="padding:0;display:block"><b>Front printed.</b><p class="hint" style="margin:4px 0 0">Let the ink dry a moment. Click <b>Print back</b>, then turn the card over (same top edge), put it back in slot 1 and insert the tray when the disc light blinks.</p></div>`;
+      const backs = passCards('Back').map(c => c.slot);
+      const turn = twoSlots ? `turn ${backs.length > 1 ? 'both cards' : 'the card in slot ' + backs[0]} over (same top edge), each back in <b>its own slot</b>${backs.length < 2 ? ' (the other card has no back – leave it out)' : ''}`
+                            : `turn the card over (same top edge), put it back in slot ${slotOne}`;
+      body += `<div class="note" style="padding:0;display:block"><b>Front${twoSlots ? 's' : ''} printed.</b><p class="hint" style="margin:4px 0 0">Let the ink dry a moment. Click <b>Print back</b>, then ${turn} and insert the tray when the disc light blinks.</p></div>`;
       foot += `<button class="btn" data-close>Done for now</button><button class="btn primary" id="epBack">${ICON}Print back</button>`;
     } else if (step === 'done') {
       body += `<p><b>Sent to the printer.</b></p>`;
       foot += `<button class="btn primary" data-close>Close</button>`;
+      if (pair && CPS.clearSelection) CPS.clearSelection();          // both cards printed -> untick them
     }
     $('#epBody').innerHTML = body; $('#epFoot').innerHTML = foot;
-    document.querySelectorAll('#epSide button').forEach(b => b.onclick = () => document.querySelectorAll('#epSide button').forEach(x => x.setAttribute('aria-pressed', x === b)));
+    const keepCopies = () => { const c = $('#epCopies'); if (c) opt.copies = Math.max(1, +c.value || 1); };
+    document.querySelectorAll('#epLay button').forEach(b => b.onclick = () => { keepCopies(); opt.layout = b.dataset.v; draw(); });
+    document.querySelectorAll('#epSide button').forEach(b => b.onclick = () => { keepCopies(); opt.side = b.dataset.v; draw(); });
+    const sw = $('#epSwap'); if (sw) sw.onclick = () => { keepCopies(); [cur, opt.pair] = [opt.pair, cur]; draw(); };
     const go = $('#epGo'); if (go) go.onclick = async () => {
-      const mode = document.querySelector('#epSide button[aria-pressed="true"]')?.dataset.v || 'Front';
-      const copies = +$('#epCopies').value || 1;
-      if (await send(mode === 'Back' ? 'Back' : 'Front', copies)) { step = mode === 'both' ? 'flip' : 'done'; cur.copies = copies; draw(); }
+      keepCopies();
+      const first = opt.side === 'Back' ? 'Back' : 'Front';
+      if (await send(first, opt.copies)) { step = opt.side === 'both' && passCards('Back').length ? 'flip' : 'done'; draw(); }
     };
-    const back = $('#epBack'); if (back) back.onclick = async () => { if (await send('Back', cur.copies || 1)) { step = 'done'; draw(); } };
+    const back = $('#epBack'); if (back) back.onclick = async () => { if (await send('Back', opt.copies)) { step = 'done'; draw(); } };
   }
   async function send(side, copies) {
+    const cards = passCards(side);
+    if (!cards.length) { toast(`No card has a ${side.toLowerCase()} side`, {error: true}); return false; }
     const btn = $('#epGo') || $('#epBack'); if (btn) { btn.disabled = true; btn.textContent = 'Printing…'; }
-    try { await api(BASE + '/print', {job: cur.job, side, copies, name: cur.details.name || cur.source}); toast(`${side} sent to the printer`); return true; }
-    catch (e) { toast(e.message, {error: true}); if (btn) { btn.disabled = false; btn.innerHTML = ICON + 'Print'; } return false; }
+    const name = [...new Set(cards.map(c => nm(c.job === cur.job ? cur : opt.pair)))].join(' + ');
+    try {
+      const r = await api(BASE + '/print', {cards, copies, name});
+      toast(`${side} sent to the printer` + (r.slots.length > 1 ? ` (both slots, ${r.cards} cards)` : ''));
+      return true;
+    } catch (e) { toast(e.message, {error: true}); if (btn) { btn.disabled = false; btn.innerHTML = ICON + 'Print'; } return false; }
   }
 
   CPS.registerRowAction({id: 'print', label: 'Print', title: 'Print on a PVC card (Epson)', icon: ICON, run: openPrint,
     when: j => j.sides.includes('Front')});   // PVC cards only (not the A4 laminated sheets)
+
+  // selection bar: tick 1 or 2 cards -> print them straight onto the tray (1st ticked = slot 1)
+  if (CPS.registerBulkAction) CPS.registerBulkAction({id: 'pvc', label: 'Print on PVC', icon: ICON, primary: true,
+    title: 'Print the selected cards on PVC (Epson) – first ticked goes in slot 1',
+    when: list => list.some(isPvc),
+    blocked: list => !list.every(isPvc) ? 'A4 laminated sheets can’t go on the PVC tray – untick them'
+                   : list.length > 2 ? 'The card tray holds 2 cards – select 1 or 2' : '',
+    run: list => list.length === 2 ? openPair(list[0], list[1]) : openPrint(list[0])});
 
   /* ---------------- settings panel ---------------- */
   CPS.registerSettingsPanel('epson_pvc', async el => {
@@ -100,6 +158,7 @@
           ${num('epOx', 'Move right', s.offset_x_mm, 0.1, 'mm')}${num('epOy', 'Move down', s.offset_y_mm, 0.1, 'mm')}
           ${num('epW', 'Card width', s.card_w_mm, 0.1, 'mm', 'Standard card: 85.6')}${num('epH', 'Card height', s.card_h_mm, 0.1, 'mm', 'Standard card: 54')}
           ${num('epSc', 'Scale', s.scale_pct, 0.1, '%')}
+          ${num('epS2x', 'Slot 2: move right', s.slot2_dx_mm, 0.1, 'mm', 'Only if slot 2 is off while slot 1 is right')}${num('epS2y', 'Slot 2: move down', s.slot2_dy_mm, 0.1, 'mm')}
           <div class="pfield"><label for="epRotSel">Rotation</label>
             <select class="text" id="epRotSel">${[90, 270, 0, 180].map(r => `<option value="${r}" ${+s.rotation === r ? 'selected' : ''}>${r === 90 ? '90° (portrait, like Photo+)' : r === 270 ? '270° (portrait, other way)' : r + '°'}</option>`).join('')}</select></div>
         </div></div>
@@ -109,6 +168,7 @@
         <header><h4>Alignment test</h4><p>Put a <b>blank card</b> in the tray. If the printed outline is off, adjust <i>Position &amp; size</i>; if the TOP EDGE arrow is upside down, choose rotation 270°.</p></header>
         <div class="pbody"><div class="rowf" style="flex-wrap:wrap">
           <button class="btn" id="epTest" ${ready ? '' : 'disabled'}>${ICON}Print alignment test</button>
+          <button class="btn" id="epTest2" ${ready ? '' : 'disabled'} title="Blank cards in slot 1 and slot 2">${ICON}Test both slots</button>
           <a class="btn quiet" href="${BASE}/test.png">Download test image</a></div></div>
       </section>`;
 
@@ -151,7 +211,8 @@
       const mode = document.querySelector('#epMode button[aria-pressed="true"]').dataset.v;
       st = await api(BASE + '/config', Object.assign({printer: $('#epPrinter').value, mode, borderless: $('#epBl') ? $('#epBl').checked : s.borderless,
         rotation: $('#epRotSel').value, offset_x_mm: $('#epOx').value, offset_y_mm: $('#epOy').value,
-        card_w_mm: $('#epW').value, card_h_mm: $('#epH').value, scale_pct: $('#epSc').value}, extra || {}));
+        card_w_mm: $('#epW').value, card_h_mm: $('#epH').value, scale_pct: $('#epSc').value,
+        slot2_dx_mm: $('#epS2x').value, slot2_dy_mm: $('#epS2y').value}, extra || {}));
       s = st;
     };
     document.querySelectorAll('#epMode button').forEach(b => b.onclick = async () => {
@@ -161,6 +222,7 @@
     $('#epPrinter').onchange = async () => { await save(); CPS.settingsPanels.epson_pvc(el); };
     $('#epSave').onclick = async () => { try { await save(); toast('Printer settings saved'); } catch (e) { toast(e.message, {error: true}); } };
     $('#epTest').onclick = async () => { try { await save(); await api(BASE + '/test', {}); toast('Alignment test sent'); } catch (e) { toast(e.message, {error: true}); } };
+    $('#epTest2').onclick = async () => { try { await save(); await api(BASE + '/test', {slots: [1, 2]}); toast('Alignment test sent (both slots)'); } catch (e) { toast(e.message, {error: true}); } };
     drawMode();
   });
 })();

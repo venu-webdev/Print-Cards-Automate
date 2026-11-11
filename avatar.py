@@ -67,6 +67,49 @@ def _square_face(img):
     return img.crop((x, y, x + side, y + side)).resize((AVATAR_PX, AVATAR_PX), Image.LANCZOS)
 
 
+def photo_box(doc, card_type, card_image):
+    """Where the holder's photo sits on a finished card image -> [x0, y0, x1, y1] (px) or None.
+    Used by the "Adjust" editor so brightness / contrast can be changed on the photo only.
+    The PDF's own photo is searched on the card at many sizes (normalised correlation, so the
+    shop's colour curves on the photo don't matter)."""
+    import cv2
+    if card_type in ("rc", "aadhaar_lam") or card_image is None:
+        return None
+    card = np.asarray(card_image.convert("L"))
+    H, W = card.shape
+    if card_type == "voter":
+        import make_cards
+        mask = make_cards.find_main_photo(np.asarray(card_image.convert("RGB")))
+        if mask is None:
+            return None
+        ys, xs = np.nonzero(mask)
+        return [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1]
+    try:
+        photo = _from_pdf(doc)
+    except Exception:
+        photo = None
+    if photo is None:
+        return None
+    f = 0.5                                                   # search at half size (fast)
+    g = cv2.resize(card, (round(W * f), round(H * f)), interpolation=cv2.INTER_AREA)
+    t0 = np.asarray(photo.convert("L"))
+    best = None
+    for frac in np.linspace(0.18, 0.8, 32):                   # photo height as part of the card height
+        th = round(g.shape[0] * frac)
+        tw = round(th * t0.shape[1] / t0.shape[0])
+        if th < 12 or tw >= g.shape[1] or th >= g.shape[0]:
+            continue
+        t = cv2.resize(t0, (tw, th), interpolation=cv2.INTER_AREA)
+        res = cv2.matchTemplate(g, t, cv2.TM_CCOEFF_NORMED)
+        _, mx, _, loc = cv2.minMaxLoc(res)
+        if best is None or mx > best[0]:
+            best = (mx, loc, tw, th)
+    if best is None or best[0] < 0.5:
+        return None
+    _, (x, y), tw, th = best
+    return [round(x / f), round(y / f), round((x + tw) / f), round((y + th) / f)]
+
+
 def holder_photo(doc, card_type, front_image=None):
     """-> JPEG bytes of the holder's face, or None (e.g. vehicle RC)."""
     if card_type == "rc":

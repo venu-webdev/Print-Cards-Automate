@@ -89,13 +89,14 @@
   <section id="unzip">
     <h2><span class="n">2</span>Copy and unzip the folder</h2>
     <ol class="steps">
-      <li>Download <code>Print-Cards-Automate-shop.zip</code> from your Google Drive to the shop PC.</li>
-      <li>Right-click the zip &rarr; <span class="ui">Properties</span> &rarr; at the bottom tick <span class="ui">Unblock</span> &rarr; <span class="ui">OK</span>.
+      <li>Copy <code>Print-Cards-Automate-shop.zip</code> to the new PC (pen drive, or download it from your Google Drive).</li>
+      <li>Right-click the zip &rarr; <span class="ui">Properties</span> &rarr; if there is an <span class="ui">Unblock</span> box at the bottom, tick it &rarr; <span class="ui">OK</span>.
         <div class="tip"><b>Why:</b> Windows marks downloaded files. Without this, the <code>.bat</code> files may be blocked with &ldquo;Windows protected your PC&rdquo;.</div></li>
       <li>Right-click the zip &rarr; <span class="ui">Extract All&hellip;</span> &rarr; choose a simple place, e.g. <span class="path">D:\CardPrint</span> or <span class="path">C:\CardPrint</span> &rarr; <span class="ui">Extract</span>.</li>
-      <li>Open the extracted <span class="path">Print-Cards-Automate</span> folder. You should see <code>Setup.bat</code>, <code>Start Website.bat</code>, <code>Make Cards.bat</code>, this guide, and the folders <code>raw</code>, <code>export</code>, <code>plugins</code>, <code>templates</code>, <code>web</code>.</li>
+      <li>Open the extracted <span class="path">Print-Cards-Automate</span> folder. You should see <code>Setup.bat</code>, <code>Start Website.bat</code>, <code>Make Cards.bat</code>, this guide, and the folders <code>raw</code>, <code>export</code>, <code>history</code>, <code>plugins</code>, <code>templates</code>, <code>web</code>.</li>
     </ol>
-    <div class="warn"><b>Don&rsquo;t</b> run anything from inside the zip window &ndash; always from the extracted folder.</div>
+    <div class="tip"><b>Everything comes along:</b> the customer PDFs in <code>raw</code>, the finished JPEGs in <code>export</code>, every card in the website&rsquo;s list (<code>history</code>, incl. the Small sheet), and the printer settings. If the old save folder doesn&rsquo;t exist on this PC, the website saves into this folder&rsquo;s own <code>export</code> &ndash; change it in <span class="ui">Settings</span> if you want.</div>
+    <div class="warn"><b>Don&rsquo;t</b> run anything from inside the zip window &ndash; always from the extracted folder. The zip holds customers&rsquo; documents &ndash; delete it from the pen drive / Drive once it&rsquo;s copied.</div>
   </section>
 
   <section id="python">
@@ -157,6 +158,7 @@
           <tr><td>Driving Licence</td><td><code>DAMODHARDL.pdf</code>, <code>DL-Type-1.pdf</code></td></tr>
           <tr><td>Voter ID</td><td><code>Voter-ID.pdf</code></td></tr>
           <tr><td>Vehicle RC</td><td><code>RC-SAMPLE.pdf</code></td></tr>
+          <tr><td>ABHA card</td><td><code>ABHA-Card-75-2344-0822-4850.pdf</code>, <code>ABHA-Card-65-6347-4346-6482.pdf</code></td></tr>
         </table></li>
       <li><b>Aadhaar A4 sheets:</b> click the <span class="ui">Aadhaar A4</span> tile, then drop <code>SUBR1992.pdf</code>.</li>
       <li><b>Ration card:</b> click the <span class="ui">Ration Card</span> tile, type RC number <code>2821148232</code>, then drop <code>YALA1947.pdf</code> (needs internet).</li>
@@ -215,6 +217,12 @@
       <li>Check: photo brightness, colours, no white edge, back lines up with the front.</li>
     </ol>
     <div class="tip"><b>Card PDF</b> button in the same window downloads an exact card-size PDF &ndash; useful if you ever want to print from Epson Photo+ instead.</div>
+    <div class="tip"><b>Two cards at once (tray slot 1 + slot 2):</b>
+      <ul style="margin:6px 0 0">
+        <li><b>Same card twice:</b> <span class="ui">Print</span> &rarr; <span class="ui">Same card &times;2</span>.</li>
+        <li><b>Two different people:</b> tick both cards in the list (box next to the photo) &rarr; <span class="ui">Print on PVC</span> on the bar at the bottom. The first one ticked goes in slot 1 (<span class="ui">Swap slots</span> if needed). After the fronts, turn each card over <b>in its own slot</b>.</li>
+        <li>First time: Settings &rarr; Card printer &middot; Epson &rarr; <span class="ui">Test both slots</span> with blank cards in both slots. If only slot 2 is off, set <b>Slot 2: move right / down</b>.</li>
+      </ul></div>
   </section>
 
   <section id="canon">
@@ -223,6 +231,7 @@
     <table>
       <tr><th style="width:34%">Setting</th><th>Set it to</th></tr>
       <tr><td><b>Printer</b></td><td>Your Canon iR printer</td></tr>
+      <tr><td><b>Paper tray</b></td><td><b>Multi-purpose Tray</b> (default &ndash; the list shows every tray the Canon has, e.g. Drawer 1&ndash;4; remembered per printer)</td></tr>
       <tr><td><b>Colour</b></td><td><b>On</b> (Aadhaar sheets are in colour)</td></tr>
       <tr><td><b>Resolution</b></td><td><b>600 dpi</b></td></tr>
     </table>
@@ -245,9 +254,19 @@
     <ol class="steps">
       <li>On the left, click the <span class="ui">Aadhaar A4</span> tile, then drop the customer&rsquo;s e-Aadhaar PDF.</li>
       <li>The result has three sheets: <b>Full</b> (whole page with the green tick + time), <b>Both</b> (front &amp; back card cut-outs) and <b>Small</b>.</li>
-      <li>Click the row&rsquo;s <span class="ui">Print</span> button (&ldquo;Print A4 sheets&rdquo;). Tick the sheets you need, set copies, keep <b>Colour</b> on &rarr; <span class="ui">Print</span>.</li>
+      <li>Click the row&rsquo;s <span class="ui">Print</span> button (&ldquo;Print A4 sheets&rdquo;) &rarr; <span class="ui">Whole sheets</span>. Tick the sheets you need, check the <b>Paper tray</b>, set copies, keep <b>Colour</b> on &rarr; <span class="ui">Print</span>.</li>
       <li>Cut along the lines and laminate. The card part should match a real card&rsquo;s size (85.6 &times; 54 mm).</li>
+      <li><b>Several customers:</b> tick their cards in the list &rarr; <span class="ui">Print A4</span> on the bar at the bottom. Each person has their own row: tick <b>Full</b> (big), <b>Both</b> or <b>Small</b> and copies per person &ndash; all go to the Canon in one job.</li>
+      <li><b>Share pages</b> (on by default): a person&rsquo;s <b>Small</b> is printed <b>under another person&rsquo;s Big</b> on the same sheet, and other Smalls share a sheet (5 per A4). E.g. Big, Small, Small, Big = <b>2 sheets</b> instead of 4. The dialog shows how many sheets it will use.</li>
     </ol>
+    <div class="tip"><b>Small sheet &ndash; don&rsquo;t waste paper (5 customers per A4):</b>
+      <ul style="margin:6px 0 0">
+        <li><span class="ui">Print</span> &rarr; <span class="ui">Small sheet &ndash; row by row</span> &rarr; <span class="ui">Print now in row 1</span>. Keep the sheet.</li>
+        <li>Next customer: put the <b>same sheet</b> back in the tray, <b>the same way round</b> &rarr; it prints in row 2, and so on up to row 5.</li>
+        <li>Or <span class="ui">Add to sheet</span> to collect customers, then <span class="ui">Small sheet</span> (top bar) &rarr; <span class="ui">Print waiting rows</span>.</li>
+        <li>When the sheet is full or used up: <span class="ui">Small sheet</span> &rarr; <span class="ui">New sheet</span>.</li>
+        <li>First time: print row 1 on plain paper and mark the top edge, so you know which way round the Canon wants the sheet fed again.</li>
+      </ul></div>
     <div class="ok"><b>Done:</b> once the scale test is right, every Aadhaar sheet prints at the correct size &ndash; the tool always prints at exactly 100%.</div>
   </section>
 
@@ -264,6 +283,8 @@
       <tr><td>A4 sheet card is too small</td><td>Turn off &ldquo;Fit to page&rdquo; in the Canon printing preferences (step 11).</td></tr>
       <tr><td>Ration card: &ldquo;Could not reach the AePDS site&rdquo;</td><td>Check internet. The AePDS site is sometimes slow &ndash; try again in a minute.</td></tr>
       <tr><td>&ldquo;Empty file&rdquo; / &ldquo;Cannot open empty stream&rdquo;</td><td>The PDF is broken or 0 bytes &ndash; ask the customer to send it again.</td></tr>
+      <tr><td>Printed several sheets but got fewer pages (the rest on the <b>back</b>)</td><td>The Canon was printing 2-sided. The website now always asks for 1-sided &ndash; restart <code>Start Website.bat</code> if it still happens.</td></tr>
+      <tr><td>&ldquo;Request failed (404)&rdquo; when printing, right after an update</td><td>The website was updated while it was running &ndash; close the black window and start <code>Start Website.bat</code> again.</td></tr>
       <tr><td>Anything else</td><td>Look at the <b>black window</b> &ndash; the error text is there. Take a photo of it and of the screen.</td></tr>
     </table>
   </section>
@@ -274,11 +295,34 @@
       <li>Double-click <code>Start Website.bat</code> (desktop shortcut).</li>
       <li>Pick the card type (or Auto-detect) &rarr; drop the customer&rsquo;s PDF(s).</li>
       <li>Check the preview. Ration card: fix Telugu names / order in the row&rsquo;s <b>&#8943;</b> menu &rarr; <span class="ui">Update card</span>.</li>
+      <li><b>Ration card &ndash; real dates of birth:</b> before adding the Aadhaar, click <span class="ui">Open EPDS rice card search</span> (copies the RC number) &rarr; on EPDS <b>Rice card search</b> &rarr; Ctrl+V &rarr; Submit &rarr; <b>Ctrl+A</b>, <b>Ctrl+C</b> &rarr; paste into the box under it. It shows &ldquo;&#10003; 3 members, 3 with date of birth&rdquo;. For a card already made: &#8943; &rarr; paste &rarr; <span class="ui">Fill dates</span> &rarr; <span class="ui">Update card</span>.</li>
       <li><b>PVC card:</b> <span class="ui">Print</span> &rarr; Front, then back &rarr; card in slot 1 when the light blinks &rarr; flip &rarr; Print back.</li>
-      <li><b>Aadhaar A4:</b> <span class="ui">Print</span> &rarr; choose sheets &rarr; Print on the Canon &rarr; cut &amp; laminate.</li>
-      <li>Close the black window at the end of the day.</li>
+      <li><b>Aadhaar A4:</b> <span class="ui">Print</span> &rarr; choose sheets &rarr; Print on the Canon &rarr; cut &amp; laminate. Small sheet: <span class="ui">Small sheet &ndash; row by row</span> (5 customers per A4).</li>
+      <li>Close the black window at the end of the day. The list stays &ndash; tomorrow every card is still there (search by name, ID, job ref or date like &ldquo;5 nov&rdquo;).</li>
     </ol>
-    <div class="tip"><b>Your printer settings are saved</b> in <span class="path">plugins\epson_pvc\config.json</span> and <span class="path">plugins\office_print\config.json</span>. If you ever replace the folder with a newer version, copy these two files into the new folder.</div>
+    <div class="tip"><b>What is kept where:</b> printer settings in <span class="path">plugins\epson_pvc\config.json</span> and <span class="path">plugins\office_print\config.json</span>; website settings in <span class="path">settings.json</span>; every card in the list (and the Small sheet) in the <span class="path">history</span> folder. If you ever replace the folder with a newer version, copy these files and the <code>history</code> folder into the new folder. Delete old cards with &#8943; &rarr; Remove, or tick them &rarr; Delete.</div>
+  </section>
+
+  <section id="adjust">
+    <h2><span class="n">15</span>Photo too dark? Adjust a card</h2>
+    <ol class="steps">
+      <li>On the card&rsquo;s preview click the <b>sliders</b> button (or &#8943; &rarr; <span class="ui">Adjust photo / colours</span>).</li>
+      <li><span class="ui">Photo only</span> is chosen when the photo was found; otherwise <b>drag on the card</b> around the photo. <span class="ui">Whole card</span> changes everything.</li>
+      <li>Move <b>Brightness</b>, <b>Contrast</b>, <b>Colour</b>, <b>Sharpness</b> &ndash; the preview updates &rarr; <span class="ui">Save</span>. Downloads and Epson printing use the adjusted card.</li>
+      <li><span class="ui">Reset to original</span> always brings back the untouched card.</li>
+    </ol>
+  </section>
+
+  <section id="network">
+    <h2><span class="n">16</span>Use the website from another PC</h2>
+    <ol class="steps">
+      <li>On the <b>main PC</b> (the one with the printers): <span class="ui">Settings</span> &rarr; <span class="ui">Network sharing</span> &rarr; type a <b>PIN</b> (4&ndash;8 digits) &rarr; <span class="ui">Save PIN</span> &rarr; switch <b>Share on the network</b> on.</li>
+      <li>Close the black window and start <code>Start Website.bat</code> again. It shows the address for other PCs, e.g. <code>http://192.168.0.192:5000</code>.</li>
+      <li>Click <span class="ui">Allow through firewall&hellip;</span> and answer <b>Yes</b> in the Windows prompt (or double-click <code>Allow Network Access.bat</code>).</li>
+      <li>On the <b>other PC</b>: open Chrome / Edge, type that address, enter the PIN once. Bookmark it.</li>
+    </ol>
+    <div class="tip"><b>Good to know:</b> everything stays on the main PC &ndash; cards, history, printers. Printing from another PC prints on the main PC&rsquo;s Epson / Canon. The main PC must be on with the black window open. Change the PIN to lock other PCs out again.</div>
+    <div class="warn">Only on the shop&rsquo;s own (private) network &ndash; Windows must show the network as <b>Private</b>, not Public.</div>
   </section>
 
   <footer>Card Print Studio &middot; shop setup guide</footer>

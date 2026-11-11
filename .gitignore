@@ -1,6 +1,7 @@
 # --- customer documents: NEVER commit -------------------------------------------
 raw/*
 export/*
+history/
 !raw/.gitkeep
 !export/.gitkeep
 Screenshots/

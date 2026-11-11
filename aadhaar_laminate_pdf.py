@@ -7,6 +7,7 @@ Every fragment = (dst rect in canvas px @300 dpi, src rect in PDF points).
 """
 import datetime
 import io
+import re
 
 import numpy as np
 import pymupdf
@@ -62,9 +63,37 @@ def _shift(items, dy):
     return [(_Frag((f.d[0], f.d[1] + dy, f.d[2], f.d[3] + dy), f.s) if isinstance(f, _Frag) else f) for f in items]
 
 
+_NUM = r"-?(?:\d+\.?\d*|\.\d+)"
+_GRAY_OP = re.compile(rf"(?<![\w.\-/])({_NUM})(\s+)(g|G)(?![\w])")
+_RGB_OP = re.compile(rf"(?<![\w.\-/])({_NUM})(\s+)({_NUM})(\s+)({_NUM})(\s+)(rg|RG)(?![\w])")
+
+
+def _curve_colours(stream, lut):
+    """Apply the Curves LUT to the vector fill / stroke colours (g G rg RG) of a content stream.
+    Black text (0 0 0) stays exactly black, so text and QR stay sharp vector."""
+    f = lambda v: f"{float(np.interp(min(max(float(v), 0), 1) * 255, np.arange(256), lut)) / 255:.4f}"
+    s = _GRAY_OP.sub(lambda m: f"{f(m[1])}{m[2]}{m[3]}", stream)
+    return _RGB_OP.sub(lambda m: f"{f(m[1])}{m[2]}{f(m[3])}{m[4]}{f(m[5])}{m[6]}{m[7]}", s)
+
+
+def _set_image(doc, xref, lut):
+    pix = pymupdf.Pixmap(doc, xref)
+    if pix.n - pix.alpha != 3:
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+    if pix.alpha:
+        pix = pymupdf.Pixmap(pix, 0)
+    a = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3)
+    buf = io.BytesIO()
+    Image.fromarray(np.clip(lut[a], 0, 255).round().astype(np.uint8)).save(buf, "PNG")
+    doc[0].replace_image(xref, stream=buf.getvalue())
+
+
 def _enhanced_copy(doc):
-    """Copy of the PDF with the holder photo brightened (Curves + Levels from the action),
-    replaced inside the PDF so it stays exactly in place."""
+    """Copy of the PDF with the action's colour steps done inside the PDF (everything stays in place):
+      1. holder photo: brighter (Curves 113->143 + Levels gamma 1.24)
+      2. inverse of the photo selection = the rest of the canvas: darker (Curves 159->105) -
+         every picture (card artwork, logos, QR) and every vector line / shape colour.
+    The thin strip of the photo selection around the photo is put back by _photo_overlays."""
     page = doc[0]
     cx = ((L.PHOTO_RECT[1] + L.PHOTO_RECT[3]) / 2 - L.BASE_TX) / L.BASE_SX
     cy = ((L.PHOTO_RECT[0] + L.PHOTO_RECT[2]) / 2 - L.BASE_TY) / L.BASE_SY
@@ -73,20 +102,19 @@ def _enhanced_copy(doc):
         for r in page.get_image_rects(img[0]):
             if r.contains(pymupdf.Point(cx, cy)) and r.width < page.rect.width / 3:
                 target = img[0]
-    if target is None:
-        return doc
     new = pymupdf.open(stream=doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_NONE), filetype="pdf")
-    pix = pymupdf.Pixmap(new, target)
-    if pix.n - pix.alpha != 3:
-        pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
-    if pix.alpha:
-        pix = pymupdf.Pixmap(pix, 0)
-    a = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3)
-    lut = 255 * (L._spline_lut(L.PHOTO_CURVE) / 255) ** (1 / L.PHOTO_GAMMA)
-    out = np.clip(lut[a], 0, 255).round().astype(np.uint8)
-    buf = io.BytesIO()
-    Image.fromarray(out).save(buf, "PNG")
-    new[0].replace_image(target, stream=buf.getvalue())
+    lut_photo = 255 * (L._spline_lut(L.PHOTO_CURVE) / 255) ** (1 / L.PHOTO_GAMMA)
+    lut_rest = L._spline_lut(L.REST_CURVE)
+    for xref in {img[0] for img in new[0].get_images(full=True)}:
+        _set_image(new, xref, lut_photo if xref == target else lut_rest)
+    forms = [x for x in range(1, new.xref_length())
+             if "/Subtype/Form" in new.xref_object(x, compressed=True).replace(" ", "")]
+    for xref in set(new[0].get_contents()) | set(forms):
+        s = new.xref_stream(xref)
+        if s:
+            new.update_stream(xref, _curve_colours(s.decode("latin-1"), lut_rest).encode("latin-1"))
+    if target is None:
+        print("    ! Aadhaar laminated: photo not found - only the background was darkened")
     return new
 
 
@@ -130,15 +158,17 @@ def build_pdf(doc, sheet="full", when=None, enhance=True):
     """One A4 sheet as a print-quality PDF page. Returns a pymupdf Document (1 page)."""
     if sheet not in L.SHEETS:
         raise ValueError(f"unknown sheet {sheet!r}")
+    src = doc
     if enhance:
         doc = _enhanced_copy(doc)
     W, H = doc[0].rect.width, doc[0].rect.height
     frags = [_Frag((L.BASE_TX, L.BASE_TY, L.BASE_TX + W * L.BASE_SX, L.BASE_TY + H * L.BASE_SY), (0, 0, W, H))]
     frags = _split(frags, (-1e9, -1e9, 0, 1e9))[0]                     # only what is on the canvas
+    # the whole photo selection (photo + the thin strip around it) with the photo curve, as in the action
+    photos = _photo_overlays(src, frags) if enhance else []
     if sheet in ("both", "small"):
         frags, _ = _xform(frags, (2294, 556, 2506, 1220), dx=-24.21)
     frags, _ = _xform(frags, (2145, 1285, 2414, 1314), dx=11.4)
-    photos = []
     frags, sel = _xform(frags, (2105, 1288, 2432, 1871), dx=5, dy=-2)
     frags, _ = _xform(frags, sel, dx=9.5, dy=7, sx=96.75, sy=101.2)
     frags, _ = _xform(frags, (2636, 152, 2961, 2327), dy=-12)
@@ -174,6 +204,77 @@ def build_all(doc, when=None, enhance=True):
     """{sheet: 1-page Document} for Full, Both, Small (same timestamp on all)."""
     when = when or datetime.datetime.now()
     return {s: build_pdf(doc, s, when, enhance) for s in L.SHEETS}
+
+
+# ---------------------------------------------------------------- face adjustments (website "Adjust photo")
+# In a finished sheets PDF the holder's face is a small portrait picture (the e-Aadhaar photo, and on
+# newer sheets also the photo-selection overlay), drawn wherever the card appears on that sheet.
+# Adjusting = replacing just those pictures; text, QR and artwork are not touched.
+def _is_face(info):
+    w, h = info["width"], info["height"]
+    b = info["bbox"]
+    return info.get("xref") and 0.65 < w / max(h, 1) < 0.95 and (b[2] - b[0]) * 300 / 72 < 320
+
+
+def face_boxes(page):
+    """[(xref, bbox in points)] of the face pictures on one sheet page (visible ones only)."""
+    seen, out = set(), []
+    for inf in page.get_image_info(xrefs=True):
+        r = pymupdf.Rect(inf["bbox"])
+        if _is_face(inf) and r.intersects(page.rect):
+            key = (inf["xref"], tuple(round(v) for v in r))
+            if key not in seen:
+                seen.add(key)
+                out.append((inf["xref"], r))
+    return out
+
+
+def card_clip(page):
+    """The front card around the face (for the Adjust preview), or the whole page if no face."""
+    boxes = sorted((r for _, r in face_boxes(page)), key=lambda r: (r.y0, r.x0))
+    if not boxes:
+        return page.rect, None
+    face = boxes[0]
+    for r in boxes[1:]:                                  # photo + its overlay = one face
+        if r.intersects(face):
+            face |= r
+    k = 72 / 300
+    clip = pymupdf.Rect(face.x0 - 110 * k, face.y0 - 160 * k, face.x0 + 950 * k, face.y0 + 520 * k) & page.rect
+    return clip, face
+
+
+def adjust_faces(pdf_bytes, fn):
+    """fn(PIL RGB) -> PIL RGB applied to every face picture of every sheet. Returns new PDF bytes."""
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    done = set()
+    # every portrait picture object in the file = a face (the e-Aadhaar photo, its copies and the overlay).
+    # Found by object, not via get_image_info: identical copies of the photo exist and that call can
+    # name a different copy than the one actually drawn.
+    for xref in range(1, doc.xref_length()):
+        if doc.xref_get_key(xref, "Subtype")[1] != "/Image":
+            continue
+        try:
+            w, h = int(doc.xref_get_key(xref, "Width")[1]), int(doc.xref_get_key(xref, "Height")[1])
+        except ValueError:
+            continue
+        if not (0.65 < w / max(h, 1) < 0.95 and max(w, h) <= 1200):
+            continue
+        done.add(xref)
+        pix = pymupdf.Pixmap(doc, xref)
+        if pix.n - pix.alpha != 3:
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+        if pix.alpha:
+            pix = pymupdf.Pixmap(pix, 0)
+        img = fn(Image.frombytes("RGB", (pix.width, pix.height), pix.samples)).convert("RGB")
+        # write the pixels straight into the image object: the face sits inside the placed card
+        # artwork (a form XObject), where Page.replace_image does not reach
+        doc.update_stream(xref, img.tobytes(), compress=True)
+        for key, val in (("ColorSpace", "/DeviceRGB"), ("BitsPerComponent", "8"), ("Filter", "/FlateDecode"),
+                         ("DecodeParms", "null"), ("ColorTransform", "null"), ("Decode", "null")):
+            doc.xref_set_key(xref, key, val)
+    if not done:
+        raise ValueError("The photo was not found on these sheets")
+    return doc.tobytes(deflate=True, garbage=3)
 
 
 def to_image(sheet_doc, dpi=300):

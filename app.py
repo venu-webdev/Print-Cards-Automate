@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -20,7 +21,7 @@ import zipfile
 from collections import OrderedDict
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, request, send_file
+from flask import Flask, abort, jsonify, redirect, request, send_file, session
 
 import avatar
 import make_cards
@@ -32,15 +33,25 @@ DEFAULT_SETTINGS = {
     "auto_save": False,
     "name_pattern": "{type}_{name}_{id4}_{side}",
     "extension": ".jpeg",
+    "network": False,          # other PCs on the shop network may use the website (needs a restart)
+    "network_pin": "",         # PIN other PCs must enter (this PC never needs it)
 }
+NETWORK_KEYS = ("network", "network_pin")      # changed only on this PC, through /api/network
+PORT = 5000
 CARD_TYPES = make_cards.CARD_TYPES
-MAX_JOBS = 100
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024  # 60 MB per upload
 app.json.sort_keys = False      # keep card types in our order (Auto first)
 
-JOBS = OrderedDict()          # job_id -> {"source": str, "images": {side: jpeg bytes}}
+# Every finished card is kept on disk, so the exports list survives a refresh / restart:
+#   history/<job_id>/meta.json        what the list shows (name, type, ref, file names, saved...)
+#   history/<job_id>/<Side>.jpeg      the card images (Front, Back / Full, Both, Small)
+#   history/<job_id>/photo.jpeg       holder photo (avatar)      sheets.pdf  A4 laminated print PDF
+#   history/<job_id>/ration.json (+ ration_photo.png)  ration card data, so names can be edited later
+HISTORY_DIR = ROOT / "history"
+JOB_ID_RE = re.compile(r"[0-9a-f]{32}")
+JOBS = OrderedDict()          # job_id -> meta dict (oldest first); images are read from disk
 JOBS_LOCK = threading.Lock()
 PROCESS_LOCK = threading.Lock()   # one PDF at a time (CPU heavy)
 
@@ -54,6 +65,12 @@ def load_settings():
         pass
     if s.get("name_pattern") in ("{name}-{side}", "", None):    # old default -> new clear names
         s["name_pattern"] = DEFAULT_SETTINGS["name_pattern"]
+    # folder copied to another PC / drive: a save folder whose parent no longer exists -> our own export/
+    try:
+        if not Path(s["save_folder"]).expanduser().parent.exists():
+            s["save_folder"] = DEFAULT_SETTINGS["save_folder"]
+    except (TypeError, ValueError, OSError):
+        s["save_folder"] = DEFAULT_SETTINGS["save_folder"]
     return s
 
 
@@ -83,12 +100,102 @@ def unique_path(folder: Path, filename: str) -> Path:
     return p
 
 
-def get_image(job_id, side):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-    if not job or side not in job["images"]:
+# ---------------------------------------------------------------- history (jobs on disk)
+def job_dir(job_id):
+    if not JOB_ID_RE.fullmatch(str(job_id)):
         abort(404)
-    return job["images"][side]
+    return HISTORY_DIR / job_id
+
+
+def get_job(job_id):
+    with JOBS_LOCK:
+        job = JOBS.get(str(job_id))
+    if not job:
+        abort(404)
+    return job
+
+
+def _write_meta(job_id, meta):
+    d = job_dir(job_id)
+    tmp = d / "meta.json.tmp"
+    tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, d / "meta.json")              # never leaves a half-written file
+
+
+def _write_images(job_id, images):
+    d = job_dir(job_id)
+    for side, data in images.items():
+        (d / f"{side}.jpeg").write_bytes(data)
+
+
+def _ration_summary(r):
+    return {"head_name": r["head_name"], "permanent_address": r["permanent_address"],
+            "members": [{k: m.get(k, "") for k in ("name", "name_en", "dob_age", "relation", "head")}
+                        for m in r["members"]]}
+
+
+def _save_ration(job_id, data):
+    d = job_dir(job_id)
+    data = dict(data)
+    photo = data.pop("photo", None)
+    if photo is not None:
+        photo.save(d / "ration_photo.png")
+    (d / "ration.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _load_ration(job_id):
+    from PIL import Image
+    d = job_dir(job_id)
+    data = json.loads((d / "ration.json").read_text(encoding="utf-8"))
+    p = d / "ration_photo.png"
+    data["photo"] = Image.open(p).convert("RGB") if p.is_file() else None
+    return data
+
+
+def load_history():
+    """Read every saved job back into the list (on startup)."""
+    if not HISTORY_DIR.is_dir():
+        return
+    found = []
+    for d in HISTORY_DIR.iterdir():
+        if not (d.is_dir() and JOB_ID_RE.fullmatch(d.name)):
+            continue
+        try:
+            meta = json.loads((d / "meta.json").read_text(encoding="utf-8"))
+            if meta.get("job") == d.name and all((d / f"{s}.jpeg").is_file() for s in meta["sides"]):
+                found.append(meta)
+        except (OSError, ValueError, KeyError):
+            print(f"  (skipped damaged history entry {d.name})")
+    found.sort(key=lambda m: m.get("done_at", ""))
+    with JOBS_LOCK:
+        for m in found:
+            JOBS[m["job"]] = m
+    print(f"  history: {len(found)} card{'s' if len(found) != 1 else ''} loaded from {HISTORY_DIR}")
+
+
+def public(meta):
+    """What the website gets for one job."""
+    return {k: meta.get(k) for k in ("job", "source", "sides", "type", "type_name", "details", "ref", "has_photo",
+                                     "has_pdf", "ration", "done_at", "names", "edited", "saved", "v",
+                                     "photo_box", "adjust")}
+
+
+def get_image(job_id, side):
+    job = get_job(job_id)
+    if side not in job["sides"]:
+        abort(404)
+    try:
+        return (job_dir(job_id) / f"{side}.jpeg").read_bytes()
+    except OSError:
+        abort(404)
+
+
+def get_pdf(job_id):
+    job = get_job(job_id)
+    p = job_dir(job_id) / "sheets.pdf"
+    if not job.get("has_pdf") or not p.is_file():
+        abort(404)
+    return p.read_bytes()
 
 
 def write_items(items, folder, ext):
@@ -135,7 +242,173 @@ def img(name):
 
 @app.get("/api/settings")
 def api_get_settings():
-    return jsonify(load_settings() | {"card_types": CARD_TYPES})
+    s = {k: v for k, v in load_settings().items() if k != "network_pin"}      # the PIN never leaves this PC
+    return jsonify(s | {"card_types": CARD_TYPES, "is_host": is_local()})
+
+
+# ---------------------------------------------------------------- network sharing
+# Off by default: the website only listens on this PC (127.0.0.1). With "network" on (Settings ->
+# Network sharing, then restart) it listens on the shop network too. Other PCs must enter the PIN;
+# this PC never does. Printing from another PC prints on THIS PC's printers.
+import hashlib
+import hmac
+import secrets
+import socket
+
+BIND_HOST = "127.0.0.1"                      # what this run actually listens on (set at start)
+HOST_ONLY = ("/api/browse", "/api/open-folder", "/api/network")   # dialogs on this PC / sharing settings
+PIN_FAILS = {}                               # ip -> [time of failed tries]
+
+
+def is_local():
+    return request.remote_addr in ("127.0.0.1", "::1")
+
+
+def _secret_key():
+    p = HISTORY_DIR / "_secret.key"          # kept with the history (never in git)
+    try:
+        return p.read_bytes()
+    except OSError:
+        HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+        k = secrets.token_bytes(32)
+        p.write_bytes(k)
+        return k
+
+
+def _pin_tag(pin):
+    return hashlib.sha256(("cps:" + pin).encode()).hexdigest()[:24]
+
+
+def lan_addresses():
+    """[(name, ip)] of this PC on the networks it is connected to (no loopback / link-local)."""
+    out = []
+    try:
+        import subprocess as sp
+        r = sp.run(["powershell", "-NoProfile", "-Command",
+                    "Get-NetIPAddress -AddressFamily IPv4 | ForEach-Object { $_.InterfaceAlias + '|' + $_.IPAddress }"],
+                   capture_output=True, text=True, timeout=8)
+        for line in r.stdout.splitlines():
+            name, _, ip = line.strip().partition("|")
+            if ip and not ip.startswith(("127.", "169.254.")):
+                out.append((name, ip))
+    except Exception:
+        pass
+    if not out:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("10.255.255.255", 1))
+            out.append(("Network", s.getsockname()[0]))
+            s.close()
+        except OSError:
+            pass
+    return out
+
+
+LOGIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Card Print Studio</title><style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#16181d;--muted:#5d6370;--line:#dfe2e8;--accent:#4f46e5;--err:#dc2626}
+@media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1b1e25;--text:#eceef2;--muted:#9aa0ab;--line:#2c313b;--accent:#818cf8}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI",system-ui,sans-serif;padding:16px}
+form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px;width:min(360px,100%);display:grid;gap:14px}
+h1{margin:0;font-size:20px}p{margin:0;color:var(--muted);font-size:13.5px}
+input{font:inherit;font-size:22px;letter-spacing:.3em;text-align:center;padding:10px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit}
+button{font:inherit;font-weight:600;padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer}
+.err{color:var(--err)}</style></head><body>
+<form method="post"><h1>Card Print Studio</h1><p>This PC is using the shop's card website over the network. Enter the PIN set on the main PC.</p>
+{msg}<input name="pin" type="password" inputmode="numeric" autocomplete="off" autofocus aria-label="PIN" required>
+<input type="hidden" name="next" value="{next}"><button>Open</button></form></body></html>"""
+
+
+@app.route("/lan-login", methods=["GET", "POST"])
+def lan_login():
+    s = load_settings()
+    nxt = request.values.get("next") or "/"
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        nxt = "/"
+    msg = ""
+    if request.method == "POST":
+        ip, now = request.remote_addr, time.time()
+        fails = PIN_FAILS[ip] = [t for t in PIN_FAILS.get(ip, []) if now - t < 600]
+        if len(fails) >= 8:
+            msg = '<p class="err">Too many wrong PINs - wait 10 minutes.</p>'
+        elif s.get("network_pin") and hmac.compare_digest(request.form.get("pin", ""), s["network_pin"]):
+            session.permanent = True
+            session["pin"] = _pin_tag(s["network_pin"])
+            PIN_FAILS.pop(ip, None)
+            return redirect(nxt)
+        else:
+            fails.append(now)
+            msg = '<p class="err">Wrong PIN.</p>'
+    import html
+    return LOGIN_PAGE.replace("{msg}", msg).replace("{next}", html.escape(nxt, quote=True))
+
+
+@app.before_request
+def lan_guard():
+    """Requests from other PCs: only when sharing is on, only with the PIN, never host-only actions."""
+    if is_local():
+        return None
+    s = load_settings()
+    if not s.get("network"):
+        abort(403)
+    if request.path == "/lan-login":
+        return None
+    if not s.get("network_pin") or session.get("pin") != _pin_tag(s["network_pin"]):
+        if request.path.startswith("/api/") or request.path.startswith("/plugins/"):
+            return jsonify({"error": "Enter the PIN first (reload the page)"}), 401
+        return redirect("/lan-login?next=" + (request.full_path.rstrip("?") or "/"))
+    if request.path.startswith(HOST_ONLY):
+        return jsonify({"error": "This works only on the main PC"}), 403
+    return None
+
+
+def _firewall_rule_exists():
+    try:
+        r = subprocess.run(["netsh", "advfirewall", "firewall", "show", "rule", "name=Card Print Studio"],
+                           capture_output=True, text=True, timeout=8)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+@app.get("/api/network")
+def api_network():
+    s = load_settings()
+    return jsonify({"enabled": bool(s.get("network")), "pin_set": bool(s.get("network_pin")),
+                    "listening_on_network": BIND_HOST != "127.0.0.1", "port": PORT,
+                    "addresses": [{"name": n, "url": f"http://{ip}:{PORT}"} for n, ip in lan_addresses()],
+                    "firewall": _firewall_rule_exists()})
+
+
+@app.post("/api/network")
+def api_network_set():
+    body = request.get_json(force=True) or {}
+    s = load_settings()
+    if "pin" in body:
+        pin = str(body["pin"]).strip()
+        if pin and not re.fullmatch(r"\d{4,8}", pin):
+            return jsonify({"error": "The PIN must be 4 to 8 digits"}), 400
+        s["network_pin"] = pin
+    if "enabled" in body:
+        if body["enabled"] and not s.get("network_pin"):
+            return jsonify({"error": "Set a PIN first - other PCs will need it"}), 400
+        s["network"] = bool(body["enabled"])
+    save_settings(s)
+    return api_network()
+
+
+@app.post("/api/network/firewall")
+def api_network_firewall():
+    """Ask Windows (admin prompt on this PC) to allow the website through the firewall on private networks."""
+    args = (f'advfirewall firewall add rule name="Card Print Studio" dir=in action=allow protocol=TCP '
+            f'localport={PORT} profile=private,domain')
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        f"Start-Process netsh -ArgumentList '{args}' -Verb RunAs -Wait -WindowStyle Hidden"],
+                       timeout=180)
+    except Exception as e:
+        return jsonify({"error": f"Could not open the Windows permission prompt: {e}"}), 500
+    return api_network()
 
 
 @app.post("/api/settings")
@@ -143,7 +416,7 @@ def api_set_settings():
     s = load_settings()
     body = request.get_json(force=True) or {}
     for k in DEFAULT_SETTINGS:
-        if k in body:
+        if k in body and k not in NETWORK_KEYS:
             s[k] = body[k]
     if s.get("extension") not in (".jpeg", ".jpg"):
         s["extension"] = ".jpeg"
@@ -191,7 +464,8 @@ def api_process():
     try:
         with PROCESS_LOCK:
             used_type, pages, details = make_cards.process_document_full(
-                data, card_type, password, f.filename, request.form.get("rc_no") or None)
+                data, card_type, password, f.filename, request.form.get("rc_no") or None,
+                request.form.get("epds") or None)
     except make_cards.PasswordNeeded:
         msg = "Wrong password - try again" if password else "This PDF is locked - enter its password"
         return jsonify({"error": msg, "needs_password": True}), 401
@@ -210,21 +484,70 @@ def api_process():
 
     photo = details.pop("_photo", None)
     ration = details.pop("_ration", None)
-    ref = avatar.new_ref()                       # public reference, unrelated to job_id
+    photo_box = details.pop("_photo_box", None)
     job_id = uuid.uuid4().hex
+    meta = {"job": job_id, "source": stem, "sides": list(images), "type": used_type,
+            "type_name": CARD_TYPES.get(used_type, used_type), "details": details,
+            "ref": avatar.new_ref(),                 # public reference, unrelated to job_id
+            "has_photo": photo is not None, "has_pdf": pdf is not None,
+            "ration": _ration_summary(ration) if ration else None,
+            "done_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "names": {}, "edited": {}, "saved": False, "v": 0,
+            "photo_box": {"Front": photo_box} if photo_box else {}, "adjust": {}}
+    try:
+        job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        _write_images(job_id, images)
+        if photo:
+            (job_dir(job_id) / "photo.jpeg").write_bytes(photo)
+        if pdf:
+            (job_dir(job_id) / "sheets.pdf").write_bytes(pdf)
+        if ration:
+            _save_ration(job_id, ration)
+        _write_meta(job_id, meta)                    # last: a job only counts once it is complete
+    except OSError as e:
+        shutil.rmtree(job_dir(job_id), ignore_errors=True)
+        return jsonify({"error": f"Could not store the card on disk: {e}"}), 500
     with JOBS_LOCK:
-        JOBS[job_id] = {"source": stem, "images": images, "photo": photo, "pdf": pdf, "ration": ration}
-        while len(JOBS) > MAX_JOBS:
-            JOBS.popitem(last=False)
+        JOBS[job_id] = meta
+    return jsonify(public(meta))
 
-    return jsonify({"job": job_id, "source": stem, "sides": list(images), "type": used_type,
-                    "type_name": CARD_TYPES.get(used_type, used_type), "details": details,
-                    "ref": ref, "has_photo": photo is not None, "has_pdf": pdf is not None,
-                    "ration": {"head_name": ration["head_name"], "permanent_address": ration["permanent_address"],
-                               "members": [{k: m.get(k, "") for k in ("name", "name_en", "dob_age", "relation", "head")}
-                                           for m in ration["members"]]}
-                    if ration else None,
-                    "done_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+
+@app.get("/api/jobs")
+def api_jobs():
+    """The whole exports history, newest first."""
+    with JOBS_LOCK:
+        metas = list(JOBS.values())
+    return jsonify([public(m) for m in reversed(metas)])
+
+
+@app.post("/api/jobs/<job_id>")
+def api_job_update(job_id):
+    """Remember what the website changed: file names typed by hand, saved flag."""
+    job = get_job(job_id)
+    body = request.get_json(force=True) or {}
+    with JOBS_LOCK:
+        if isinstance(body.get("names"), dict):
+            job["names"] = {s: str(v)[:200] for s, v in body["names"].items() if s in job["sides"]}
+        if isinstance(body.get("edited"), dict):
+            job["edited"] = {s: bool(v) for s, v in body["edited"].items() if s in job["sides"]}
+        if "saved" in body:
+            job["saved"] = bool(body["saved"])
+        _write_meta(job_id, job)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/jobs/delete")
+def api_jobs_delete():
+    """Delete cards from the history for good (files saved to the export folder are kept)."""
+    ids = [str(i) for i in (request.get_json(force=True) or {}).get("jobs", []) if JOB_ID_RE.fullmatch(str(i))]
+    deleted = []
+    for job_id in ids:
+        with JOBS_LOCK:
+            found = JOBS.pop(job_id, None) is not None
+        if found:
+            shutil.rmtree(job_dir(job_id), ignore_errors=True)
+            deleted.append(job_id)
+    return jsonify({"deleted": deleted})
 
 
 @app.get("/api/image/<job_id>/<side>")
@@ -238,24 +561,88 @@ def api_image(job_id, side):
 @app.get("/api/pdf/<job_id>")
 def api_pdf(job_id):
     """Print-quality PDF (A4 laminated sheets: Full, Both, Small as pages)."""
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-    if not job or not job.get("pdf"):
-        abort(404)
-    name = clean_name(request.args.get("name") or job["source"], ".pdf")
-    return send_file(io.BytesIO(job["pdf"]), mimetype="application/pdf", as_attachment=True, download_name=name)
+    data = get_pdf(job_id)
+    name = clean_name(request.args.get("name") or get_job(job_id)["source"], ".pdf")
+    return send_file(io.BytesIO(data), mimetype="application/pdf", as_attachment=True, download_name=name)
+
+
+# ---------------------------------------------------------------- A4 PDF: PVC cards, front + back side by side
+MM = 72 / 25.4
+A4_PT = (210 * MM, 297 * MM)
+CARD_MM = (85.6, 54.0)          # ID-1 / CR80 PVC card
+A4_GAP_MM = 8.0                 # between front and back, and between rows
+A4_TOP_MM = 15.0
+A4_ROWS = 4                     # card pairs per A4 page
+CROP_MM, CROP_OFF_MM = 4.0, 1.5  # cut marks: length, distance from the card corner
+
+
+def a4_pdf(job_ids):
+    """A4 portrait pages, each row = one card: Front left, Back right, at real PVC size with cut marks.
+    The JPEGs are embedded as they are (300 dpi, with any Adjust changes) - no re-compression."""
+    import pymupdf
+    cw, ch, gap = CARD_MM[0] * MM, CARD_MM[1] * MM, A4_GAP_MM * MM
+    x_front = (A4_PT[0] - 2 * cw - gap) / 2
+    out, n = pymupdf.open(), 0
+    for job_id in job_ids:
+        job = get_job(job_id)
+        if job.get("has_pdf"):                       # A4 laminated sheets are already pages
+            continue
+        sides = [s for s in ("Front", "Back") if s in job["sides"]] or job["sides"][:2]
+        if n % A4_ROWS == 0:
+            page = out.new_page(width=A4_PT[0], height=A4_PT[1])
+        y = A4_TOP_MM * MM + (n % A4_ROWS) * (ch + gap)
+        for i, side in enumerate(sides[:2]):
+            x = x_front + i * (cw + gap)
+            r = pymupdf.Rect(x, y, x + cw, y + ch)
+            page.insert_image(r, stream=get_image(job_id, side), keep_proportion=False)
+            _crop_marks(page, r)
+        n += 1
+    if not n:
+        abort(400, "No PVC cards to put on A4 (laminated Aadhaar sheets are already A4)")
+    return out.tobytes(deflate=True, garbage=3)
+
+
+def _crop_marks(page, r):
+    L, o = CROP_MM * MM, CROP_OFF_MM * MM
+    for cx, sx in ((r.x0, -1), (r.x1, 1)):
+        for cy, sy in ((r.y0, -1), (r.y1, 1)):
+            page.draw_line((cx + sx * o, cy), (cx + sx * (o + L), cy), color=(0, 0, 0), width=0.3)
+            page.draw_line((cx, cy + sy * o), (cx, cy + sy * (o + L)), color=(0, 0, 0), width=0.3)
+
+
+@app.route("/api/a4", methods=["GET", "POST"])
+def api_a4():
+    """?job=<id> (one card) or POST {"jobs": [...], "name": ...} (several cards, 4 per page)."""
+    body = (request.get_json(force=True, silent=True) or {}) if request.method == "POST" else {}
+    ids = [str(i) for i in (body.get("jobs") or request.args.getlist("job")) if JOB_ID_RE.fullmatch(str(i))]
+    if not ids:
+        abort(400)
+    name = clean_name(body.get("name") or request.args.get("name") or "PVC-A4", ".pdf")
+    return send_file(io.BytesIO(a4_pdf(ids)), mimetype="application/pdf", as_attachment=True, download_name=name)
+
+
+@app.post("/api/epds/parse")
+def api_epds_parse():
+    """Read the EPDS rice card search page the shop copied (Ctrl+A, Ctrl+C) -> members with dates of birth."""
+    import ration_card
+    try:
+        return jsonify(ration_card.parse_epds((request.get_json(force=True) or {}).get("text", "")))
+    except ration_card.RationError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.post("/api/ration/<job_id>")
 def api_ration_edit(job_id):
     """Change the Telugu names / address of a ration card and render it again."""
     import ration_card
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-    if not job or not job.get("ration"):
+    job = get_job(job_id)
+    if not job.get("ration"):
         abort(404)
     body = request.get_json(force=True) or {}
-    data = dict(job["ration"])
+    try:
+        data = _load_ration(job_id)
+    except (OSError, ValueError):
+        return jsonify({"error": "The ration card data for this job is missing - make the card again"}), 404
     names = body.get("members") or []
     old = data["members"]
     if names and isinstance(names[0], dict):
@@ -291,17 +678,199 @@ def api_ration_edit(job_id):
         make_cards.save_jpeg(img, buf)
         images[side] = buf.getvalue()
     with JOBS_LOCK:
-        job["ration"], job["images"] = data, images
+        _write_images(job_id, images)
+        for side in images:                          # a re-drawn card starts without adjustments
+            (job_dir(job_id) / f"{side}.orig.jpeg").unlink(missing_ok=True)
+        _save_ration(job_id, data)
+        job.update(ration=_ration_summary(data), v=int(job.get("v", 0)) + 1, saved=False, adjust={})
+        _write_meta(job_id, job)
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------- adjust (brightness / contrast ...)
+# The first adjustment keeps the untouched card as <Side>.orig.jpeg; every change is made from that
+# original (never on top of an earlier change), and Reset puts it back.
+ADJ_RANGE = {"brightness": (-60, 60), "contrast": (-60, 60), "saturation": (-100, 100), "sharpness": (0, 100)}
+
+
+def _adj_params(src):
+    out = {}
+    for k, (lo, hi) in ADJ_RANGE.items():
+        try:
+            out[k] = max(lo, min(hi, float(src.get(k, 0) or 0)))
+        except (TypeError, ValueError):
+            out[k] = 0.0
+    return out
+
+
+def _adj_box(v, size):
+    """'x0,y0,x1,y1' or [x0, y0, x1, y1] -> clamped tuple, or None (= whole card)."""
+    if not v or v == "card":
+        return None
+    try:
+        x0, y0, x1, y1 = [int(round(float(n))) for n in (v.split(",") if isinstance(v, str) else v)]
+    except (TypeError, ValueError):
+        return None
+    W, H = size
+    x0, x1 = sorted((max(0, min(W, x0)), max(0, min(W, x1))))
+    y0, y1 = sorted((max(0, min(H, y0)), max(0, min(H, y1))))
+    return (x0, y0, x1, y1) if x1 - x0 >= 8 and y1 - y0 >= 8 else None
+
+
+def apply_adjust(img, p, box=None):
+    from PIL import ImageEnhance
+    img = img.convert("RGB")
+    part = img.crop(box) if box else img
+    if p["brightness"]:
+        part = ImageEnhance.Brightness(part).enhance(1 + p["brightness"] / 100)
+    if p["contrast"]:
+        part = ImageEnhance.Contrast(part).enhance(1 + p["contrast"] / 100)
+    if p["saturation"]:
+        part = ImageEnhance.Color(part).enhance(1 + p["saturation"] / 100)
+    if p["sharpness"]:
+        part = ImageEnhance.Sharpness(part).enhance(1 + p["sharpness"] / 50)
+    if not box:
+        return part
+    out = img.copy()
+    out.paste(part, box[:2])
+    return out
+
+
+def _adjust_source(job_id, side):
+    """The untouched card image (original if it was adjusted before)."""
+    from PIL import Image
+    job = get_job(job_id)
+    if side not in job["sides"] or job.get("has_pdf"):
+        abort(404)                                   # A4 laminated sheets: see the _lam_ functions below
+    orig = job_dir(job_id) / f"{side}.orig.jpeg"
+    data = (orig if orig.is_file() else job_dir(job_id) / f"{side}.jpeg").read_bytes()   # no open file handle
+    return Image.open(io.BytesIO(data))
+
+
+# Laminated Aadhaar: the sheets are a vector PDF. Only the face pictures inside it are changed (same face
+# on Full, Both and Small, so one adjustment covers every sheet); the untouched PDF is kept as
+# sheets.orig.pdf and every change is made from it.
+def _lam_source(job_id):
+    d = job_dir(job_id)
+    p = d / "sheets.orig.pdf"
+    return (p if p.is_file() else d / "sheets.pdf").read_bytes()
+
+
+def _lam_preview(job_id, side, p):
+    """Front card of one sheet, rendered from the untouched PDF, with the face adjusted."""
+    import pymupdf
+    from PIL import Image
+    job = get_job(job_id)
+    if side not in job["sides"]:
+        abort(404)
+    page = pymupdf.open(stream=_lam_source(job_id), filetype="pdf")[job["sides"].index(side)]
+    import aadhaar_laminate_pdf as V
+    clip, face = V.card_clip(page)
+    dpi = 220
+    pix = page.get_pixmap(dpi=dpi, clip=clip, alpha=False)
+    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    if face is not None:
+        k = dpi / 72
+        img = apply_adjust(img, p, tuple(round(v) for v in ((face.x0 - clip.x0) * k, (face.y0 - clip.y0) * k,
+                                                            (face.x1 - clip.x0) * k, (face.y1 - clip.y0) * k)))
+    return img
+
+
+def _lam_save(job_id, job, body):
+    import aadhaar_laminate_pdf as V
+    import pymupdf
+    d = job_dir(job_id)
+    orig_pdf = d / "sheets.orig.pdf"
+    if body.get("reset"):
+        if orig_pdf.is_file():
+            os.replace(orig_pdf, d / "sheets.pdf")
+        for side in job["sides"]:
+            o = d / f"{side}.orig.jpeg"
+            if o.is_file():
+                os.replace(o, d / f"{side}.jpeg")
+        job["adjust"] = {}
+        return
+    p = _adj_params(body)
+    try:
+        pdf = V.adjust_faces(_lam_source(job_id), lambda im: apply_adjust(im, p))
+    except ValueError as e:
+        abort(422, str(e))
+    if not orig_pdf.is_file():
+        shutil.copyfile(d / "sheets.pdf", orig_pdf)
+        for side in job["sides"]:
+            shutil.copyfile(d / f"{side}.jpeg", d / f"{side}.orig.jpeg")
+    doc = pymupdf.open(stream=pdf, filetype="pdf")
+    for i, side in enumerate(job["sides"]):           # the website / Save use these JPEGs
+        buf = io.BytesIO()
+        make_cards.save_jpeg(V.to_image(_one_page(doc, i)), buf)
+        (d / f"{side}.jpeg").write_bytes(buf.getvalue())
+    (d / "sheets.pdf").write_bytes(pdf)
+    job["adjust"] = {s: dict(p, box=None) for s in job["sides"]}
+
+
+def _one_page(doc, i):
+    import pymupdf
+    one = pymupdf.open()
+    one.insert_pdf(doc, from_page=i, to_page=i)
+    return one
+
+
+@app.get("/api/adjust/<job_id>/<side>")
+def api_adjust_preview(job_id, side):
+    """Preview only (nothing saved): ?brightness=..&contrast=..&saturation=..&sharpness=..&box=x0,y0,x1,y1"""
+    if get_job(job_id).get("has_pdf"):
+        img = _lam_preview(job_id, side, _adj_params(request.args))
+    else:
+        src = _adjust_source(job_id, side)
+        img = apply_adjust(src, _adj_params(request.args), _adj_box(request.args.get("box"), src.size))
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    resp = send_file(io.BytesIO(buf.getvalue()), mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.post("/api/adjust/<job_id>")
+def api_adjust_save(job_id):
+    """{"side", "brightness", "contrast", "saturation", "sharpness", "box": [..] | null} or {"side", "reset": true}
+    Laminated Aadhaar: the face on every sheet changes (box is ignored)."""
+    body = request.get_json(force=True) or {}
+    side = str(body.get("side", ""))
+    job = get_job(job_id)
+    if job.get("has_pdf"):
+        with JOBS_LOCK:
+            _lam_save(job_id, job, body)
+            job.update(v=int(job.get("v", 0)) + 1, saved=False)
+            _write_meta(job_id, job)
+        return jsonify(public(job))
+    src = _adjust_source(job_id, side)
+    job, d = get_job(job_id), job_dir(job_id)
+    orig, cur = d / f"{side}.orig.jpeg", d / f"{side}.jpeg"
+    with JOBS_LOCK:
+        if body.get("reset"):
+            if orig.is_file():
+                os.replace(orig, cur)
+            job.setdefault("adjust", {}).pop(side, None)
+        else:
+            p, box = _adj_params(body), _adj_box(body.get("box"), src.size)
+            if not orig.is_file():
+                shutil.copyfile(cur, orig)
+            buf = io.BytesIO()
+            make_cards.save_jpeg(apply_adjust(src, p, box), buf)
+            cur.write_bytes(buf.getvalue())
+            job.setdefault("adjust", {})[side] = dict(p, box=list(box) if box else None)
+        job.update(v=int(job.get("v", 0)) + 1, saved=False)
+        _write_meta(job_id, job)
+    return jsonify(public(job))
 
 
 @app.get("/api/photo/<job_id>")
 def api_photo(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-    if not job or not job.get("photo"):
+    job = get_job(job_id)
+    p = job_dir(job_id) / "photo.jpeg"
+    if not job.get("has_photo") or not p.is_file():
         abort(404)
-    resp = send_file(io.BytesIO(job["photo"]), mimetype="image/jpeg")
+    resp = send_file(io.BytesIO(p.read_bytes()), mimetype="image/jpeg")
     resp.headers["Cache-Control"] = "private, max-age=3600"
     return resp
 
@@ -344,6 +913,11 @@ def api_save():
         folder, saved = write_items(body.get("items", []), s["save_folder"], s["extension"])
     except OSError as e:
         return jsonify({"error": f"Could not save: {e}"}), 500
+    with JOBS_LOCK:                                  # remember the "Saved" tick
+        for job_id in {str(it.get("job")) for it in body.get("items", [])}:
+            if job_id in JOBS and not JOBS[job_id].get("saved"):
+                JOBS[job_id]["saved"] = True
+                _write_meta(job_id, JOBS[job_id])
     return jsonify({"folder": folder, "saved": saved})
 
 
@@ -360,6 +934,13 @@ class HostAPI:
         self.dir = PLUGIN_DIR / pid
         self.app = app
 
+    @property
+    def data_dir(self):
+        """Folder for a plugin's own data about customers' cards (kept with the history, never in git)."""
+        d = HISTORY_DIR / "_plugins" / self.id
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
     def enabled(self):
         return plugin_enabled(self.id)
 
@@ -367,18 +948,20 @@ class HostAPI:
         return get_image(job_id, side)                      # 404s for unknown jobs
 
     def get_pdf(self, job_id):
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
-        if not job or not job.get("pdf"):
-            abort(404)
-        return job["pdf"]
+        return get_pdf(job_id)                              # 404s for unknown jobs
+
+    def pvc_a4_pdf(self, job_ids):
+        """A4 PDF with each PVC card's front + back side by side at real size (4 cards per page)."""
+        return a4_pdf(job_ids)
 
     def job_info(self, job_id):
+        job = get_job(job_id)
+        return {"source": job["source"], "sides": list(job["sides"]), "type": job.get("type"),
+                "name": (job.get("details") or {}).get("name") or job["source"]}
+
+    def job_exists(self, job_id):
         with JOBS_LOCK:
-            job = JOBS.get(job_id)
-        if not job:
-            abort(404)
-        return {"source": job["source"], "sides": list(job["images"])}
+            return str(job_id) in JOBS
 
     def load_config(self, default):
         try:
@@ -453,6 +1036,8 @@ def plugin_static(pid, name):
 
 
 load_plugins()
+load_history()
+app.secret_key = _secret_key()                 # signs the "PIN entered" cookie of other PCs
 
 
 @app.errorhandler(413)
@@ -461,7 +1046,16 @@ def too_big(_e):
 
 
 if __name__ == "__main__":
-    url = "http://127.0.0.1:5000"
-    print(f"\n  Card Print Studio running at {url}\n  (close this window to stop)\n")
+    url = f"http://127.0.0.1:{PORT}"
+    s = load_settings()
+    if s.get("network") and s.get("network_pin"):
+        BIND_HOST = "0.0.0.0"
+        others = "\n".join(f"      {n}: http://{ip}:{PORT}" for n, ip in lan_addresses()) or "      (no network found)"
+        print(f"\n  Card Print Studio running at {url}\n  Shared on the network - other PCs open (PIN needed):\n{others}"
+              + ("" if _firewall_rule_exists() else
+                 "\n  ! Windows Firewall may block other PCs: Settings -> Network sharing -> Allow through firewall")
+              + "\n  (close this window to stop)\n")
+    else:
+        print(f"\n  Card Print Studio running at {url}  (this PC only)\n  (close this window to stop)\n")
     threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
+    app.run(host=BIND_HOST, port=PORT, debug=False, threaded=True)

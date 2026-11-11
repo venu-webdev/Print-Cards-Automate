@@ -424,7 +424,16 @@ def render(data):
             w = w * size / base
             x = (c0 + c1) / 2 - w / 2 if offs[c] is None else c0 + (c1 - c0) * offs[c]
             _draw_line(back, val, size, x, cy, weight=wt)
-    return fimg, Image.fromarray(back)
+    # extra edge spacing on all 4 sides of both sides (safe on a borderless PVC print), background extended
+    import make_cards
+    scale = make_cards.EDGE_SCALE["ration"]
+    return make_cards.pad_edges(fimg, scale), make_cards.pad_edges(Image.fromarray(back), scale)
+
+
+def photo_box():
+    """Where the holder's photo is on the finished front (after the edge spacing)."""
+    import make_cards
+    return make_cards.scale_box(PHOTO_BOX, make_cards.EDGE_SCALE["ration"], SIZE)
 
 
 # ===================================================================== data from AePDS + Aadhaar
@@ -477,6 +486,94 @@ def fetch_rc(rc_no):
         raise RationError(f"No members listed on AePDS for RC {rc_no}")
     info["members"] = members
     return info
+
+
+# ---------------------------------------------------------------- EPDS rice card search (copied by the user)
+# epds.ap.gov.in -> Rice Card Search shows every member's real date of birth (AePDS only gives the age).
+# The site does not answer scripts, so the shop runs the search in its browser, presses Ctrl+A, Ctrl+C
+# and pastes the page here (a saved .html of the result page works too).
+EPDS_SEARCH_URL = "https://epds.ap.gov.in/epdsAP/epds/publicepdsDashBoard.epds"
+_REL_WORDS = sorted(REL_TE, key=len, reverse=True)
+_MEMBER_RE = _re.compile(
+    r"^(?P<name>[A-Za-z][A-Za-z .']*?)\s+(?P<gender>Male|Female|Transgender)\s+(?P<age>\d{1,3})\s+"
+    r"(?P<dob>\d{4}-\d{2}-\d{2}|\d{2}[-/]\d{2}[-/]\d{4}|NA|-)?\s*(?P<rest>.*)$", _re.I)
+
+
+def _iso_date(s):
+    s = (s or "").strip()
+    m = _re.fullmatch(r"(\d{2})[-/](\d{2})[-/](\d{4})", s)
+    return f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else (s if _re.fullmatch(r"\d{4}-\d{2}-\d{2}", s) else "")
+
+
+def parse_epds(text):
+    """Text copied from the EPDS 'RationCard/RiceCard' result page (or its saved HTML) ->
+    {"rc_no", "existing_rc", "scheme", "card_type", "shop_no", "mandal", "district", "pin", "address", "members": [...]}
+    members: {"name", "gender", "age", "dob" (YYYY-MM-DD or ""), "relation"}. Raises RationError if no members."""
+    text = text or ""
+    if "<t" in text.lower():                                   # saved HTML: table cells -> tabs, rows -> lines
+        text = _re.sub(r"(?is)<(script|style).*?</\1>", " ", text)
+        text = _re.sub(r"(?i)</t[dh]\s*>", "\t", text)
+        text = _re.sub(r"(?i)</tr\s*>|<br\s*/?>|</(p|div|h\d)>", "\n", text)
+        text = _html.unescape(_re.sub(r"<[^>]+>", " ", text))
+    lines = [l.replace("\xa0", " ").strip() for l in text.splitlines()]
+    lines = [l for l in lines if l]
+    # label -> value pairs from the detail tables ("Existing Rc No<TAB>WAP...<TAB>RiceCard No<TAB>2821...")
+    fields = {}
+    labels = ("Existing Rc No", "RiceCard No", "Rice Card No", "Card Type", "Card Status", "Mandal Name", "Shop No",
+              "House No", "Colony", "Mandal", "District", "PIN", "State Name", "Secretariat Name", "Name of Head Of Family")
+    for l in lines:
+        cells = [c.strip(" :") for c in _re.split(r"\t+|\s{2,}|\s*:\s+", l) if c.strip(" :")]
+        for i, c in enumerate(cells[:-1]):
+            for lab in labels:
+                if c.lower() == lab.lower() and lab not in fields and cells[i + 1].lower() not in (x.lower() for x in labels):
+                    fields[lab] = cells[i + 1]
+    members = []
+    for l in lines:
+        cells = [c.strip() for c in l.split("\t") if c.strip()]
+        if len(cells) >= 5 and _re.fullmatch(r"(?i)male|female|transgender", cells[1]) and cells[2].isdigit():
+            rel = next((c for c in cells[4:] if c.upper() in REL_TE), "")
+            members.append({"name": " ".join(cells[0].split()), "gender": cells[1].title(), "age": cells[2],
+                            "dob": _iso_date(cells[3]), "relation": rel.upper()})
+            continue
+        m = _MEMBER_RE.match(" ".join(l.split()))              # copied without tabs
+        if m and not l.lower().startswith("name"):
+            rest = m.group("rest").upper()
+            rel = next((r for r in _REL_WORDS if _re.search(rf"\b{_re.escape(r)}\b", rest)), "")
+            members.append({"name": m.group("name").strip(), "gender": m.group("gender").title(), "age": m.group("age"),
+                            "dob": _iso_date(m.group("dob")), "relation": rel})
+    if not members:
+        raise RationError("No family members found in the pasted EPDS page - copy the whole result page "
+                          "(Ctrl+A, Ctrl+C) after clicking Submit")
+    scheme = _re.search(r"\(([A-Z]+)\)", fields.get("Card Type", ""))
+    rc_no = _re.sub(r"\D", "", fields.get("RiceCard No") or fields.get("Rice Card No") or "")
+    addr = [fields.get(k, "") for k in ("House No", "Colony", "Secretariat Name", "Mandal", "District")]
+    return {"rc_no": rc_no, "existing_rc": fields.get("Existing Rc No", ""), "card_type": fields.get("Card Type", ""),
+            "scheme": scheme.group(1) if scheme else "", "shop_no": fields.get("Shop No", ""),
+            "mandal": fields.get("Mandal Name") or fields.get("Mandal", ""), "district": fields.get("District", ""),
+            "pin": fields.get("PIN", ""), "head": fields.get("Name of Head Of Family", ""),
+            "address": ", ".join(a for a in addr if a and a.upper() != "NA"), "members": members}
+
+
+def merge_epds(rc, epds, rc_no=None):
+    """AePDS info (or None) + parsed EPDS -> AePDS-style info where every member also has "dob".
+    Without AePDS the EPDS data alone is used."""
+    if epds.get("rc_no") and rc_no and _re.sub(r"\D", "", str(rc_no)) != epds["rc_no"]:
+        raise RationError(f"The pasted EPDS page is for rice card {epds['rc_no']}, not {rc_no}")
+    if rc is None:
+        rc = {"rc_no": epds["rc_no"] or _re.sub(r"\D", "", str(rc_no or "")), "district": epds["district"],
+              "taluk": epds["mandal"], "fps_id": epds["shop_no"], "scheme": epds["scheme"], "shop_no": epds["shop_no"],
+              "new_rc_no": epds["existing_rc"],
+              "members": [{"name": m["name"].title(), "gender": m["gender"], "age": m["age"],
+                           "relation": m["relation"] or "OTHERS", "status": "Active"} for m in epds["members"]]}
+    used = set()
+    for m in rc["members"]:
+        for i, e in enumerate(epds["members"]):
+            if i not in used and _same_person(m["name"], e["name"]):
+                used.add(i)
+                if e["dob"]:
+                    m["dob"] = e["dob"]
+                break
+    return rc
 
 
 def _norm(s):
@@ -543,9 +640,19 @@ def _permanent_address(f):
     return ", ".join(out)
 
 
-def build_data(rc_no, aadhaar_doc):
-    """Card data for render() from the AePDS page + the head of family's e-Aadhaar."""
-    rc = fetch_rc(rc_no)
+def build_data(rc_no, aadhaar_doc, epds_text=None):
+    """Card data for render() from the AePDS page + the head of family's e-Aadhaar.
+    epds_text: the EPDS rice card search page copied by the shop -> real dates of birth for every member
+    (and the card still works from EPDS alone if AePDS can't be reached)."""
+    epds = parse_epds(epds_text) if epds_text and epds_text.strip() else None
+    try:
+        rc = fetch_rc(rc_no)
+    except RationError:
+        if not epds:
+            raise
+        rc = None
+    if epds:
+        rc = merge_epds(rc, epds, rc_no)
     f = aadhaar_facts(aadhaar_doc)
     head = next((m for m in rc["members"] if m["relation"].upper() == "SELF"), rc["members"][0])
     if f["name_en"] and not _same_person(f["name_en"], head["name"]):
@@ -560,10 +667,13 @@ def build_data(rc_no, aadhaar_doc):
     for m in rc["members"]:
         g = m["gender"].upper()
         is_head = m is head
-        try:
-            est = f"{_dt.date.today().year - int(m['age'])}-01-01/{m['age']}"   # unknown DOB: year-01-01
-        except ValueError:
-            est = m["age"]
+        if m.get("dob"):                                         # real DOB from EPDS
+            est = f"{m['dob']}/{m['age']}"
+        else:
+            try:
+                est = f"{_dt.date.today().year - int(m['age'])}-01-01/{m['age']}"   # unknown DOB: year-01-01
+            except ValueError:
+                est = m["age"]
         rows.append({"head": is_head,
                      "name": f["name_te"] if is_head and f["name_te"] else te_translit.name(m["name"], known),
                      "name_en": m["name"],

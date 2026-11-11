@@ -6,6 +6,7 @@ The shop's tool for turning document PDFs into print-ready card images (1016 × 
 - **Aadhaar PVC**, **Aadhaar laminated A4** (Full / Both / Small sheets)
 - **PAN** (e-PAN / Instant PAN), **Voter ID** (e-EPIC), **Driving Licence**, **Vehicle RC**
 - **Ration (rice) card**: from the head of family's e-Aadhaar + RC number (members from AePDS)
+- **ABHA card**: the ABHA card PDF (ABHA app / abha.abdm.gov.in), front + back as PVC cards
 - Printing plugins: **Epson L8050** PVC card tray, **A4 office printer** (100 % scale)
 
 > Keep this repository **private**. It contains Microsoft fonts (Nirmala UI) and government logos
@@ -41,6 +42,10 @@ The shop's tool for turning document PDFs into print-ready card images (1016 × 
 - Aadhaar / PAN PDFs locked with a password: the file name is tried as the password
   (e.g. `SUBR1992.pdf`).
 - Ration card: needs internet access to the AePDS site.
+- Photo too dark / light: the sliders button on a card's preview (Adjust: brightness, contrast, colour,
+  sharpness; photo only or whole card; Reset brings the original back).
+- Other PCs in the shop: Settings → Network sharing (PIN + restart + `Allow Network Access.bat`),
+  then open `http://<this PC's address>:5000` on the other PC.
 
 ## Updating
 
@@ -57,6 +62,7 @@ Run `Setup.bat` again if `requirements.txt` changed.
 | Path | Why |
 |---|---|
 | `raw/`, `export/` | customer documents |
+| `history/` | every card made on the website (kept so the exports list survives a refresh / restart; delete cards with Remove / Clear in the website) |
 | `Screenshots/` | may show customer data |
 | `Printer-Resources/` | Epson installers (download them from Epson) |
 | `templates/*_reference.png`, `templates/*.local.json` | a real person's card, used only to re-measure templates |
