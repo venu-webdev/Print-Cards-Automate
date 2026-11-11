@@ -1,0 +1,16 @@
+{
+  "auto_save": false,
+  "name_pattern": "{type}_{name}_{id4}_{side}",
+  "extension": ".jpeg",
+  "pan_front": {
+    "name_gap": 6,
+    "father_gap": 6,
+    "sign_size": 138,
+    "sign_x": -34,
+    "sign_y": -8,
+    "sign_strength": 209,
+    "sign_contrast": 0,
+    "sign_dark": 0,
+    "sign_color": "original"
+  }
+}

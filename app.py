@@ -60,8 +60,26 @@ PROCESS_LOCK = threading.Lock()   # one PDF at a time (CPU heavy)
 
 
 # ---------------------------------------------------------------- settings
-def load_settings():
+# Three layers, later wins:
+#   DEFAULT_SETTINGS                built in
+#   shop_settings.json  (in git)    the shop's shared choices - every PC gets them with `git pull`
+#   settings.json       (not in git) this PC's own changes only: save folder, network sharing / PIN, ...
+SHOP_SETTINGS_FILE = ROOT / "shop_settings.json"
+SHOP_KEYS = ("auto_save", "name_pattern", "extension", "pan_front")   # never a PC path or the PIN
+
+
+def _shop_defaults():
     s = dict(DEFAULT_SETTINGS)
+    try:
+        shop = json.loads(SHOP_SETTINGS_FILE.read_text(encoding="utf-8"))
+        s.update({k: v for k, v in shop.items() if k in SHOP_KEYS})
+    except (OSError, ValueError):
+        pass
+    return s
+
+
+def load_settings():
+    s = _shop_defaults()
     try:
         s.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
     except (OSError, ValueError):
@@ -78,7 +96,11 @@ def load_settings():
 
 
 def save_settings(s):
-    SETTINGS_FILE.write_text(json.dumps(s, indent=2), encoding="utf-8")
+    """Only what differs from the shop's defaults is kept in this PC's settings.json, so a newer
+    shop_settings.json (git pull) still reaches every PC for the things it did not change itself."""
+    base = _shop_defaults()
+    own = {k: v for k, v in s.items() if k not in base or v != base[k]}
+    SETTINGS_FILE.write_text(json.dumps(own, indent=2), encoding="utf-8")
 
 
 # ---------------------------------------------------------------- helpers

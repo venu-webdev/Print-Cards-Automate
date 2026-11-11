@@ -27,6 +27,14 @@ The shop's tool for turning document PDFs into print-ready card images (1016 × 
 4. Double-click **`Setup.bat`**. It installs the Python packages from `requirements.txt`.
 5. Double-click **`Start Website.bat`**. The site opens at <http://127.0.0.1:5000>.
 
+### Settings shared by every PC
+
+`shop_settings.json` (in git) holds the shop's shared choices: PAN front defaults (name gaps,
+signature size / position / ink), the file name pattern, file type and auto-save. Every PC gets
+them with `git pull`. Each PC's own `settings.json` (not in git) keeps only what that PC changed:
+its save folder, network sharing and PIN, and anything set differently there. To change a shared
+default for all PCs, edit `shop_settings.json`, then commit and push it.
+
 ### Printers
 
 - **Epson L8050 (PVC cards):** install the Epson L8050 driver from Epson's website on that PC.
