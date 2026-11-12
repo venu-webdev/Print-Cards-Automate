@@ -28,3 +28,6 @@ venv/
 .idea/
 Thumbs.db
 desktop.ini
+
+# per-PC plugin settings (printer choices) - each PC keeps its own
+plugins/*/config.json

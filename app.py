@@ -35,6 +35,7 @@ DEFAULT_SETTINGS = {
     "extension": ".jpeg",
     "network": False,          # other PCs on the shop network may use the website (needs a restart)
     "network_pin": "",         # PIN other PCs must enter (this PC never needs it)
+    "type_names": {},          # the shop's own names for the card types, e.g. {"pmjay": "Arogyasri"}
 }
 # PAN back hologram sticker brightness, A (scan as is) .. F (brightest). New cards start at
 # pan_rc.HOLOGRAM_DEFAULT ("E"); each card is changed on its back side in the exports list.
@@ -65,7 +66,7 @@ PROCESS_LOCK = threading.Lock()   # one PDF at a time (CPU heavy)
 #   shop_settings.json  (in git)    the shop's shared choices - every PC gets them with `git pull`
 #   settings.json       (not in git) this PC's own changes only: save folder, network sharing / PIN, ...
 SHOP_SETTINGS_FILE = ROOT / "shop_settings.json"
-SHOP_KEYS = ("auto_save", "name_pattern", "extension", "pan_front")   # never a PC path or the PIN
+SHOP_KEYS = ("auto_save", "name_pattern", "extension", "pan_front", "type_names")   # never a PC path or the PIN
 
 
 def _shop_defaults():
@@ -202,7 +203,7 @@ def public(meta):
     """What the website gets for one job."""
     return {k: meta.get(k) for k in ("job", "source", "sides", "type", "type_name", "details", "ref", "has_photo",
                                      "has_pdf", "ration", "done_at", "names", "edited", "saved", "v",
-                                     "photo_box", "adjust", "hologram", "pan_front")}
+                                     "photo_box", "adjust", "hologram", "pan_front", "scan")}
 
 
 def get_image(job_id, side):
@@ -239,6 +240,18 @@ def write_items(items, folder, ext):
 @app.get("/")
 def index():
     return send_file(ROOT / "web" / "index.html")
+
+
+@app.get("/assets/<any('tools.css', 'tools.js'):name>")
+def tool_asset(name):
+    """Look + helpers shared by the tool pages (Passport photos, Card scan)."""
+    return send_file(ROOT / "web" / name, max_age=0)
+
+
+@app.get("/passport")
+def passport_page():
+    """Passport size photos: adjust one photo, then 8 of them on a 6 x 4 inch sheet."""
+    return send_file(ROOT / "web" / "passport.html")
 
 
 SITE_PAGES = {"home": "home.html", "login": "login.html", "register": "register.html"}
@@ -446,6 +459,9 @@ def api_set_settings():
     if s.get("extension") not in (".jpeg", ".jpg"):
         s["extension"] = ".jpeg"
     s.pop("pan_hologram", None)                     # old setting (now chosen per card)
+    names = s.get("type_names") if isinstance(s.get("type_names"), dict) else {}
+    s["type_names"] = {k: " ".join(str(v).split())[:24] for k, v in names.items()
+                       if (k in CARD_TYPES or k in ("passport", "scan")) and str(v).strip()}   # empty name = back to the standard one
     save_settings(s)
     return jsonify(s)
 
@@ -609,7 +625,8 @@ def api_pdf(job_id):
     """Print-quality PDF (A4 laminated sheets: Full, Both, Small as pages)."""
     data = get_pdf(job_id)
     name = clean_name(request.args.get("name") or get_job(job_id)["source"], ".pdf")
-    return send_file(io.BytesIO(data), mimetype="application/pdf", as_attachment=True, download_name=name)
+    return send_file(io.BytesIO(data), mimetype="application/pdf", as_attachment=not request.args.get("inline"),
+                     download_name=name)                 # inline=1: open in the browser (to print)
 
 
 # ---------------------------------------------------------------- A4 PDF: PVC cards, front + back side by side
@@ -622,10 +639,31 @@ A4_ROWS = 4                     # card pairs per A4 page
 CROP_MM, CROP_OFF_MM = 4.0, 1.5  # cut marks: length, distance from the card corner
 
 
-def a4_pdf(job_ids):
-    """A4 portrait pages, each row = one card: Front left, Back right, at real PVC size with cut marks.
-    The JPEGs are embedded as they are (300 dpi, with any Adjust changes) - no re-compression."""
+CARD_RADIUS_MM = 3.18          # ID-1 / CR80 corner radius (ISO/IEC 7810)
+_ROUND_MASK = {}
+
+
+def _round_mask(w, h):
+    """Grey PNG mask for a w x h px card picture: white inside the rounded card, black in the corners."""
+    if (w, h) not in _ROUND_MASK:
+        from PIL import Image, ImageDraw
+        k = 4                                                       # draw 4x and shrink: smooth arc
+        r = CARD_RADIUS_MM / CARD_MM[0] * w * k
+        m = Image.new("L", (w * k, h * k), 0)
+        ImageDraw.Draw(m).rounded_rectangle((0, 0, w * k - 1, h * k - 1), radius=r, fill=255)
+        buf = io.BytesIO()
+        m.resize((w, h), Image.LANCZOS).save(buf, "PNG")
+        _ROUND_MASK[(w, h)] = buf.getvalue()
+    return _ROUND_MASK[(w, h)]
+
+
+def a4_pdf(job_ids, rounded=True):
+    """A4 portrait pages, each row = one card: Front left, Back right, at real PVC size.
+    rounded: the cards get their real rounded corners (3.18 mm) and a thin rounded cutting line;
+    otherwise square with cut marks. The JPEGs are embedded as they are (300 dpi, with any Adjust
+    changes) - no re-compression; the corners are a mask on top of them."""
     import pymupdf
+    from PIL import Image
     cw, ch, gap = CARD_MM[0] * MM, CARD_MM[1] * MM, A4_GAP_MM * MM
     x_front = (A4_PT[0] - 2 * cw - gap) / 2
     out, n = pymupdf.open(), 0
@@ -640,8 +678,14 @@ def a4_pdf(job_ids):
         for i, side in enumerate(sides[:2]):
             x = x_front + i * (cw + gap)
             r = pymupdf.Rect(x, y, x + cw, y + ch)
-            page.insert_image(r, stream=get_image(job_id, side), keep_proportion=False)
-            _crop_marks(page, r)
+            data = get_image(job_id, side)
+            if rounded:
+                w, h = Image.open(io.BytesIO(data)).size
+                page.insert_image(r, stream=data, mask=_round_mask(w, h), keep_proportion=False)
+                page.draw_rect(r, color=(0.6, 0.6, 0.6), width=0.35, radius=CARD_RADIUS_MM / CARD_MM[1])
+            else:
+                page.insert_image(r, stream=data, keep_proportion=False)
+                _crop_marks(page, r)
         n += 1
     if not n:
         abort(400, "No PVC cards to put on A4 (laminated Aadhaar sheets are already A4)")
@@ -664,7 +708,449 @@ def api_a4():
     if not ids:
         abort(400)
     name = clean_name(body.get("name") or request.args.get("name") or "PVC-A4", ".pdf")
-    return send_file(io.BytesIO(a4_pdf(ids)), mimetype="application/pdf", as_attachment=True, download_name=name)
+    rounded = not (body.get("square") or request.args.get("square"))      # square=1: old cut-mark style
+    return send_file(io.BytesIO(a4_pdf(ids, rounded)), mimetype="application/pdf", as_attachment=True, download_name=name)
+
+
+@app.get("/api/a4/preview")
+def api_a4_preview():
+    """?job=<id>: the first A4 page as a picture, for the A4 window."""
+    import pymupdf
+    ids = [i for i in request.args.getlist("job") if JOB_ID_RE.fullmatch(i)]
+    if not ids:
+        abort(400)
+    page = pymupdf.open(stream=a4_pdf(ids), filetype="pdf")[0]
+    resp = send_file(io.BytesIO(page.get_pixmap(dpi=110).tobytes("png")), mimetype="image/png")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+# ---------------------------------------------------------------- passport photo sheet
+# The passport page lays out the 8 photos (35 x 45 mm, 2 rows x 4 columns) on a 6 x 4 inch canvas at 300 dpi
+# (1800 x 1200 px). "Add to exports" sends that sheet + the single photo; it becomes a normal entry in the
+# exports list: side "Sheet" (JPEG, 300 dpi) + a 6 x 4 inch PDF for printing, the photo as its avatar.
+PASSPORT_PX = (1800, 1200)
+PASSPORT_PHOTO_PX = (413, 531)          # 35 x 45 mm @ 300 dpi
+
+
+def _data_url_image(value, size):
+    import base64
+    from PIL import Image
+    data = str(value or "")
+    if "," in data:
+        data = data.split(",", 1)[1]
+    try:
+        img = Image.open(io.BytesIO(base64.b64decode(data))).convert("RGB")
+    except Exception:
+        abort(400)
+    if img.size != size:
+        abort(400)
+    return img
+
+
+def _passport_pdf(sheet, portrait=False):
+    import pymupdf
+    jpg = io.BytesIO()
+    make_cards.save_jpeg(sheet, jpg)
+    doc = pymupdf.open()
+    w, h = (4, 6) if portrait else (6, 4)                            # inch; portrait = turned for 4x6 paper fed upright
+    page = doc.new_page(width=w * 72, height=h * 72)
+    page.insert_image(page.rect, stream=jpg.getvalue())
+    return doc.tobytes()
+
+
+def _passport_orient(sheet, portrait):
+    """The sheet as it should be saved / printed: turned 90 deg clockwise for a 4x6 portrait print."""
+    from PIL import Image
+    return sheet.transpose(Image.ROTATE_270) if portrait else sheet
+
+
+# history/<job>/passport_src.<ext>   the customer's original photo, as uploaded (for "Edit" later)
+#               passport.json         the editor settings: position / size / angle / flip, colours, border
+PASSPORT_SRC_TYPES = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "BMP": ".bmp"}
+PASSPORT_STATE_KEYS = {"cx": float, "cy": float, "s": float, "a": float, "flip": int, "br": float, "ct": float,
+                       "sat": float, "warm": float, "bw": float, "color": str, "guide": bool}
+
+
+def _passport_state(raw):
+    out = {}
+    for k, kind in PASSPORT_STATE_KEYS.items():
+        if isinstance(raw, dict) and k in raw:
+            try:
+                out[k] = kind(raw[k])
+            except (TypeError, ValueError):
+                pass
+    if "color" in out and not re.fullmatch(r"#[0-9a-fA-F]{6}", out["color"]):
+        out.pop("color")
+    if isinstance(raw, dict) and raw.get("orient") == "portrait":    # 4x6 paper fed upright (sheet turned 90 deg)
+        out["orient"] = "portrait"
+    return out
+
+
+def _passport_source(value):
+    """Original photo (data URL) -> (bytes, extension), checked to be a real picture."""
+    import base64
+    from PIL import Image
+    data = str(value or "")
+    if "," in data:
+        data = data.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(data)
+        with Image.open(io.BytesIO(raw)) as im:
+            ext = PASSPORT_SRC_TYPES.get(im.format)
+            im.verify()
+    except Exception:
+        abort(400)
+    if not ext:
+        abort(400)
+    return raw, ext
+
+
+def _passport_src_path(job_id):
+    for p in job_dir(job_id).glob("passport_src.*"):
+        return p
+    return None
+
+
+@app.post("/api/passport")
+def api_passport():
+    """{"image": sheet PNG data URL (1800x1200), "photo": the one photo (413x531), "name": customer / file name,
+        "source": the original photo (data URL, may be left out when editing), "state": editor settings,
+        "job": <id> to update that passport entry instead of adding a new one}"""
+    body = request.get_json(force=True, silent=True) or {}
+    sheet = _data_url_image(body.get("image"), PASSPORT_PX)
+    photo = _data_url_image(body.get("photo"), PASSPORT_PHOTO_PX)
+    src = _passport_source(body["source"]) if body.get("source") else None
+    state = _passport_state(body.get("state"))
+    portrait = state.get("orient") == "portrait"
+    name = " ".join(str(body.get("name") or "").split())[:60] or "Passport photos"
+    out_sheet = _passport_orient(sheet, portrait)
+    buf = io.BytesIO()
+    make_cards.save_jpeg(out_sheet, buf)
+    ava = io.BytesIO()
+    avatar._square_face(photo).save(ava, "JPEG", quality=88)
+    pdf = _passport_pdf(out_sheet, portrait)
+
+    def write_files(job_id):
+        d = job_dir(job_id)
+        _write_images(job_id, {"Sheet": buf.getvalue()})
+        (d / "photo.jpeg").write_bytes(ava.getvalue())
+        (d / "sheets.pdf").write_bytes(pdf)
+        if src:
+            for old in d.glob("passport_src.*"):
+                old.unlink()
+            (d / f"passport_src{src[1]}").write_bytes(src[0])
+        (d / "passport.json").write_text(json.dumps(state), encoding="utf-8")
+
+    job_id = str(body.get("job") or "")
+    if job_id:                                       # "Edit": same entry, same job ref, new pictures
+        job = get_job(job_id)
+        if job.get("type") != "passport":
+            abort(400)
+        try:
+            with JOBS_LOCK:
+                write_files(job_id)
+                job.update(source=name, details={**(job.get("details") or {}), "name": name},
+                           v=int(job.get("v", 0)) + 1, saved=False)
+                _write_meta(job_id, job)
+        except OSError as e:
+            return jsonify({"error": f"Could not store the photos on disk: {e}"}), 500
+        return jsonify(public(job))
+
+    if not src:
+        return jsonify({"error": "The original photo is missing"}), 400
+    job_id = uuid.uuid4().hex
+    meta = {"job": job_id, "source": name, "sides": ["Sheet"], "type": "passport", "type_name": "Passport photos",
+            "details": {"name": name, "type_label": "PASSPORT"}, "ref": avatar.new_ref(), "has_photo": True, "has_pdf": True, "ration": None,
+            "done_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "names": {}, "edited": {}, "saved": False, "v": 0,
+            "photo_box": {}, "adjust": {}, "hologram": None, "pan_front": None,
+            "passport": {"photos": 8, "photo_mm": [35, 45], "sheet_in": [4, 6] if portrait else [6, 4],
+                         "orient": "portrait" if portrait else "landscape"}}
+    try:
+        job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        write_files(job_id)
+        _write_meta(job_id, meta)
+    except OSError as e:
+        shutil.rmtree(job_dir(job_id), ignore_errors=True)
+        return jsonify({"error": f"Could not store the photos on disk: {e}"}), 500
+    with JOBS_LOCK:
+        JOBS[job_id] = meta
+    return jsonify(public(meta))
+
+
+@app.get("/api/passport/<job_id>")
+def api_passport_get(job_id):
+    """What the passport page needs to edit an entry again: name, editor settings, is the original there."""
+    job = get_job(job_id)
+    if job.get("type") != "passport":
+        abort(404)
+    try:
+        state = json.loads((job_dir(job_id) / "passport.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        state = {}
+    return jsonify({"job": job_id, "name": (job.get("details") or {}).get("name") or job["source"], "ref": job.get("ref"),
+                    "state": _passport_state(state), "has_source": _passport_src_path(job_id) is not None})
+
+
+@app.get("/api/passport/<job_id>/source")
+def api_passport_source(job_id):
+    job = get_job(job_id)
+    p = _passport_src_path(job_id)
+    if job.get("type") != "passport" or p is None:
+        abort(404)
+    resp = send_file(io.BytesIO(p.read_bytes()), mimetype={".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
+                                                           ".bmp": "image/bmp"}.get(p.suffix, "application/octet-stream"))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+# ---------------------------------------------------------------- card scan (photo / scan of a physical card)
+# Upload -> history/_scans/<id>.jpg (upright, max 4200 px; removed after a day) -> corners found -> the page
+# moves corners / colours with live previews -> "Add to exports": a normal PVC card job (Front [+ Back]).
+# The job keeps the photos + settings (scan_<Side>.jpg, scan.json) so "Edit" can open it again.
+SCAN_TMP = HISTORY_DIR / "_scans"
+SCAN_CACHE = OrderedDict()                   # id -> PIL image (a few, so dragging corners stays quick)
+SCAN_LOCK = threading.Lock()
+SCAN_TYPES = ("scan", "aadhaar", "pan", "voter", "dl", "rc", "abha", "pmjay", "ration")
+SCAN_SIDE_KEYS = {"rot": int, "trim": float, "auto": bool, "br": float, "ct": float, "sat": float, "sharp": float}
+
+
+def _scan_clean_old():
+    try:
+        for p in SCAN_TMP.glob("*.jpg"):
+            if time.time() - p.stat().st_mtime > 24 * 3600:
+                p.unlink()
+    except OSError:
+        pass
+
+
+def _scan_put(img):
+    SCAN_TMP.mkdir(parents=True, exist_ok=True)
+    _scan_clean_old()
+    sid = uuid.uuid4().hex
+    img.save(SCAN_TMP / f"{sid}.jpg", "JPEG", quality=95, subsampling=0)
+    with SCAN_LOCK:
+        SCAN_CACHE[sid] = img
+        while len(SCAN_CACHE) > 6:
+            SCAN_CACHE.popitem(last=False)
+    return sid
+
+
+def _scan_get(sid):
+    from PIL import Image
+    if not JOB_ID_RE.fullmatch(str(sid)):
+        abort(404)
+    with SCAN_LOCK:
+        if sid in SCAN_CACHE:
+            SCAN_CACHE.move_to_end(sid)
+            return SCAN_CACHE[sid]
+    p = SCAN_TMP / f"{sid}.jpg"
+    if not p.is_file():
+        abort(404)
+    img = Image.open(p).convert("RGB")
+    with SCAN_LOCK:
+        SCAN_CACHE[sid] = img
+        while len(SCAN_CACHE) > 6:
+            SCAN_CACHE.popitem(last=False)
+    return img
+
+
+def _scan_state(raw, img):
+    """A side's settings from the page, checked: 4 corners inside (around) the photo + the colour options."""
+    raw = raw if isinstance(raw, dict) else {}
+    out = {}
+    for k, kind in SCAN_SIDE_KEYS.items():
+        if k in raw:
+            try:
+                out[k] = kind(raw[k])
+            except (TypeError, ValueError):
+                pass
+    out["rot"] = 180 if out.get("rot") == 180 else 0
+    for k, lo, hi in (("trim", 0, 40), ("br", -60, 60), ("ct", -60, 60), ("sat", -100, 100), ("sharp", 0, 100)):
+        if k in out:
+            out[k] = max(lo, min(hi, out[k]))
+    try:
+        c = [[float(x), float(y)] for x, y in raw["corners"]]
+        assert len(c) == 4
+    except Exception:
+        abort(400)
+    W, H = img.size
+    out["corners"] = [[max(-W, min(2 * W, x)), max(-H, min(2 * H, y))] for x, y in c]
+    return out
+
+
+def _scan_view(sid, img, corners=None, found=None):
+    import scan
+    if corners is None:
+        q, found = scan.find_card(img)
+        corners = q.tolist()
+    return {"id": sid, "w": img.width, "h": img.height, "corners": corners, "found": found,
+            "defaults": {k: v for k, v in scan.DEFAULTS.items()}}
+
+
+@app.get("/scan")
+def scan_page():
+    """Card scan: a photo or scan of the customer's own card -> straight PVC card."""
+    return send_file(ROOT / "web" / "scan.html")
+
+
+@app.post("/api/scan/upload")
+def api_scan_upload():
+    """multipart "file" (JPG / PNG / WebP / BMP) -> {id, w, h, corners (found automatically), found}"""
+    import scan
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "Choose a photo of the card"}), 400
+    try:
+        img = scan.open_upright(f.read())
+    except Exception:
+        return jsonify({"error": "That file is not a photo this app can read (use JPG or PNG)"}), 400
+    sid = _scan_put(img)
+    return jsonify(_scan_view(sid, img))
+
+
+@app.post("/api/scan/detect/<sid>")
+def api_scan_detect(sid):
+    return jsonify(_scan_view(sid, _scan_get(sid)))
+
+
+@app.get("/api/scan/src/<sid>")
+def api_scan_src(sid):
+    """The uploaded photo (upright), smaller for the page: ?max=1600"""
+    from PIL import Image
+    img = _scan_get(sid)
+    m = max(200, min(3000, int(request.args.get("max", 1600))))
+    if max(img.size) > m:
+        k = m / max(img.size)
+        img = img.resize((round(img.width * k), round(img.height * k)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    resp = send_file(io.BytesIO(buf.getvalue()), mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "private, max-age=86400"
+    return resp
+
+
+@app.post("/api/scan/preview/<sid>")
+def api_scan_preview(sid):
+    """{corners, rot, trim, auto, br, ct, sat, sharp} -> the straightened card (JPEG)"""
+    import scan
+    img = _scan_get(sid)
+    st = _scan_state(request.get_json(force=True, silent=True), img)
+    full = request.args.get("full")
+    card = scan.make(img, st) if full else scan.make(img, st, (scan.CARD_W // 2 * 2, scan.CARD_H // 2 * 2))
+    buf = io.BytesIO()
+    card.save(buf, "JPEG", quality=88)
+    resp = send_file(io.BytesIO(buf.getvalue()), mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.post("/api/scan/add")
+def api_scan_add():
+    """{"sides": {"Front": {id, corners, ...}, "Back": {...} (optional)}, "type": card type, "name": ...,
+        "job": <id> to update that scanned card instead of adding a new one}"""
+    import scan
+    body = request.get_json(force=True, silent=True) or {}
+    sides_in = body.get("sides") or {}
+    if not isinstance(sides_in, dict) or "Front" not in sides_in:
+        return jsonify({"error": "Add the front of the card first"}), 400
+    ctype = body.get("type") if body.get("type") in SCAN_TYPES else "scan"
+    name = " ".join(str(body.get("name") or "").split())[:60]
+    made, states, sources = {}, {}, {}
+    for side in ("Front", "Back"):
+        s = sides_in.get(side)
+        if not s:
+            continue
+        img = _scan_get(s.get("id"))
+        st = _scan_state(s, img)
+        made[side] = scan.make(img, st)
+        states[side] = st
+        sources[side] = SCAN_TMP / f"{s['id']}.jpg"
+    type_name = "Scanned card" if ctype == "scan" else CARD_TYPES.get(ctype, ctype)
+    label = {"scan": "CARD", "aadhaar": "AADHAAR", "pan": "PAN", "voter": "VOTER", "dl": "DL", "rc": "RC",
+             "abha": "ABHA", "pmjay": "AYUSHMAN", "ration": "RATION"}[ctype]
+    details = {"name": name, "type_label": label}
+
+    def store(job_id):
+        d = job_dir(job_id)
+        for p in d.glob("scan_*.jpg"):
+            if p.stem[5:] not in sources:
+                p.unlink()
+        for side, src in sources.items():
+            if src.is_file() and src.resolve() != (d / f"scan_{side}.jpg").resolve():
+                shutil.copyfile(src, d / f"scan_{side}.jpg")
+        (d / "scan.json").write_text(json.dumps(states), encoding="utf-8")
+
+    job_id = str(body.get("job") or "")
+    if job_id:                                       # "Edit": same entry, same job ref
+        job = get_job(job_id)
+        if not job.get("scan"):
+            abort(400)
+        try:
+            with JOBS_LOCK:
+                store(job_id)
+                d = job_dir(job_id)
+                for side in job["sides"]:
+                    if side not in made:             # back taken away
+                        for p in (d / f"{side}.jpeg", d / f"{side}.orig.jpeg"):
+                            if p.is_file():
+                                p.unlink()
+                        (job.get("adjust") or {}).pop(side, None)
+                for side, card in made.items():
+                    _replace_side(job_id, job, side, card)   # keeps a colour adjustment made in the card window
+                job.update(sides=list(made), type=ctype, type_name=type_name, source=name or "Scanned card",
+                           details={**(job.get("details") or {}), **details})
+                _write_meta(job_id, job)
+        except OSError as e:
+            return jsonify({"error": f"Could not store the card on disk: {e}"}), 500
+        return jsonify(public(job))
+
+    images = {}
+    for side, card in made.items():
+        buf = io.BytesIO()
+        make_cards.save_jpeg(card, buf)
+        images[side] = buf.getvalue()
+    job_id = uuid.uuid4().hex
+    meta = {"job": job_id, "source": name or "Scanned card", "sides": list(images), "type": ctype, "type_name": type_name,
+            "details": details, "ref": avatar.new_ref(), "has_photo": False, "has_pdf": False, "ration": None,
+            "done_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "names": {}, "edited": {}, "saved": False, "v": 0,
+            "photo_box": {}, "adjust": {}, "hologram": None, "pan_front": None, "scan": True}
+    try:
+        job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        _write_images(job_id, images)
+        store(job_id)
+        _write_meta(job_id, meta)
+    except OSError as e:
+        shutil.rmtree(job_dir(job_id), ignore_errors=True)
+        return jsonify({"error": f"Could not store the card on disk: {e}"}), 500
+    with JOBS_LOCK:
+        JOBS[job_id] = meta
+    return jsonify(public(meta))
+
+
+@app.get("/api/scan/job/<job_id>")
+def api_scan_job(job_id):
+    """Open a scanned card again: its photos go back into the scan store, with the settings used."""
+    from PIL import Image
+    job = get_job(job_id)
+    if not job.get("scan"):
+        abort(404)
+    d = job_dir(job_id)
+    try:
+        states = json.loads((d / "scan.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        states = {}
+    sides = {}
+    for side in job["sides"]:
+        p = d / f"scan_{side}.jpg"
+        if not p.is_file():
+            continue
+        img = Image.open(p).convert("RGB")
+        sid = _scan_put(img)
+        st = states.get(side) or {}
+        sides[side] = {**_scan_view(sid, img, st.get("corners"), True), "state": st}
+    return jsonify({"job": job_id, "name": (job.get("details") or {}).get("name") or "", "type": job.get("type"),
+                    "ref": job.get("ref"), "sides": sides})
 
 
 @app.post("/api/epds/parse")

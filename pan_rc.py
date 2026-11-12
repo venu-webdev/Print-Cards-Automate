@@ -434,6 +434,10 @@ def pan_card_images(doc, front=None):
             base, layers = pan_front_layers(doc, page, card_rect, rect, radius)
             img = compose_front(base, layers, front)
             img.info["cps_panfront"] = (base, layers)
+            import make_cards                                # exact photo spot: the card rect -> whole card
+            box = make_cards.card_photo_box(doc, page, rect, card_rect)
+            if box:
+                img.info["cps_photo_box"] = box
             print(f"    PAN Front: values {[k for k in ('name', 'father') if k in layers]}, "
                   f"signature box {layers.get('box')} (label {layers.get('label')})")
         else:

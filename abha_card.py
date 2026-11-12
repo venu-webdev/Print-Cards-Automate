@@ -73,7 +73,19 @@ def card_images(doc):
         pix = page.get_pixmap(dpi=RENDER_DPI, clip=clip, alpha=False)
         a = _to_card_shape(np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).copy())
         print(f"    {side}: {clip.width / 72 * 25.4:.1f} x {clip.height / 72 * 25.4:.1f} mm on the PDF -> PVC card")
-        out.append((side, Image.fromarray(a).resize((OUT_W, OUT_H), Image.LANCZOS)))
+        card = Image.fromarray(a).resize((OUT_W, OUT_H), Image.LANCZOS)
+        if side == "Front":                              # exact photo spot (the canvas = clip + the added edges)
+            import make_cards
+            if clip.width / clip.height > ASPECT:
+                e = (clip.width / ASPECT - clip.height) / 2
+                canvas = pymupdf.Rect(clip.x0, clip.y0 - e, clip.x1, clip.y1 + e)
+            else:
+                e = (clip.height * ASPECT - clip.width) / 2
+                canvas = pymupdf.Rect(clip.x0 - e, clip.y0, clip.x1 + e, clip.y1)
+            box = make_cards.card_photo_box(doc, page, canvas, clip)
+            if box:
+                card.info["cps_photo_box"] = box
+        out.append((side, card))
     return out
 
 

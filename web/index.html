@@ -95,7 +95,61 @@ svg.i { width: 16px; height: 16px; flex: none; }
 .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 13.5px; }
 .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); background: var(--surface); }
 
-.body { display: grid; grid-template-columns: 344px minmax(0, 1fr); min-height: 0; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.toolhost { position: fixed; inset: 56px 0 0; z-index: 30; background: var(--bg); }
+.toolhost iframe { width: 100%; height: 100%; border: 0; display: block; }
+body.tool-open .search, body.tool-open #openFolderBtn, body.tool-open #settingsBtn { display: none; }
+
+/* ---------- add bar: card types right above the history (click = choose files, drop = add) ---------- */
+.addbar { flex: none; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); background: var(--surface); display: grid; gap: 10px; }
+.add-row { display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; }
+.add-lead { display: grid; gap: 1px; min-width: 0; }
+.add-lead b { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.add-lead span { font-size: 12.5px; color: var(--muted); }
+.add-meta { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; min-width: 0; }
+.add-meta .lbl { color: var(--muted); }
+.add-meta .p { max-width: 280px; font: 12px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.add-meta #changeDest { height: 26px; padding: 0 8px; font-size: 12.5px; }
+.add-meta .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.mini { color: var(--muted); white-space: nowrap; }
+.mini b { color: var(--text); font-weight: 600; }
+button.mini { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+.mini.attn b { color: var(--err); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px; }
+.tchip { flex: none; width: 86px; display: grid; justify-items: center; align-content: start; gap: 6px; padding: 9px 4px 8px;
+         border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer;
+         transition: border-color .12s, background .12s, transform .12s, box-shadow .12s; }
+.tchip .ic { width: 38px; height: 38px; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow-1); }
+.tchip .ic svg { width: 38px; height: 38px; display: block; }
+.tchip .nm { max-width: 100%; font-size: 11.5px; font-weight: 500; line-height: 1.25; color: var(--text-2); text-align: center;
+             overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.tchip:hover { border-color: var(--line-2); background: var(--hover); transform: translateY(-1px); }
+.tchip:hover .nm { color: var(--text); }
+.tchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tchip.auto-chip { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
+.tchip.auto-chip .nm { color: var(--text); font-weight: 600; }
+.chips.editing .tchip { cursor: default; transform: none; }
+.tchip input { width: 100%; height: 24px; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface-2);
+               color: var(--text); font: 500 11.5px var(--font); text-align: center; }
+.tchip input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 2px var(--ring); }
+.add-lead .rn { display: flex; align-items: center; gap: 8px; }
+.add-lead .rn .btn { height: 24px; padding: 0 8px; font-size: 12px; }
+.a4-prev { background: var(--surface-2); border-radius: 10px; padding: 12px; display: grid; place-items: center; }
+.a4-prev img { width: min(330px, 100%); aspect-ratio: 210 / 297; object-fit: contain; background: #fff; border-radius: 4px; box-shadow: var(--shadow-2); }
+
+/* drag PDFs anywhere: the card types appear as big drop targets */
+.dropov { position: fixed; inset: 0; z-index: 60; display: none; place-items: center; padding: 24px; background: rgba(10, 10, 12, .6); backdrop-filter: blur(4px); }
+.dropov.open { display: grid; }
+.dropov-in { width: min(900px, 100%); background: var(--surface); border: 2px dashed var(--accent); border-radius: 18px; padding: 22px; text-align: center; box-shadow: var(--shadow-3); }
+.dropov-in h2 { margin: 0; font-size: 20px; }
+.dropov-in p { margin: 4px 0 16px; color: var(--muted); font-size: 13.5px; }
+.droptiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.droptile { display: grid; justify-items: center; gap: 8px; padding: 16px 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface-2); }
+.droptile .ic { width: 52px; height: 52px; border-radius: 13px; overflow: hidden; box-shadow: var(--shadow-1); }
+.droptile .ic svg { width: 52px; height: 52px; display: block; }
+.droptile b { font-size: 13.5px; }
+.droptile.over { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 3px var(--ring); transform: scale(1.03); }
+.droptile * { pointer-events: none; }
 .side { border-right: 1px solid var(--line); background: var(--surface); overflow: auto; display: flex; flex-direction: column; }
 .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
@@ -200,6 +254,15 @@ button.stat { border: 0; text-align: left; }
 .flip .face.b { transform: rotateY(180deg); }
 /* preview tools (flip / adjust photo / enlarge): always shown and big enough to hit easily */
 .flip .tools { position: absolute; inset: auto 6px 6px auto; display: flex; gap: 5px; z-index: 2; }
+.flip .turn { position: absolute; right: 6px; bottom: 6px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+              border: 1px solid rgba(255, 255, 255, .3); background: rgba(17, 17, 19, .72); color: #fff; backdrop-filter: blur(6px); cursor: pointer;
+              box-shadow: 0 2px 6px rgba(0, 0, 0, .25); transition: background .12s, transform .12s; }
+.flip .turn:hover { background: rgba(17, 17, 19, .92); transform: rotate(-12deg); }
+.flip .turn svg { width: 15px; height: 15px; }
+.row .flip .turn { width: 24px; height: 24px; right: 4px; bottom: 4px; }
+.row .flip .turn svg { width: 12px; height: 12px; }
+.side-tag .ed-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 5px; box-shadow: 0 0 0 1.5px #fff; }
+.flip:hover { box-shadow: 0 0 0 2px var(--accent); }
 .ft { height: 32px; min-width: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(17, 17, 19, .8);
       color: #fff; font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       backdrop-filter: blur(6px); cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); transition: background .12s, transform .12s; }
@@ -272,6 +335,7 @@ button.stat { border: 0; text-align: left; }
 .gacts { display: flex; gap: 6px; }
 .acts .btn.primary { min-width: 122px; }
 .gacts { flex-wrap: nowrap; margin-top: auto; } .gacts .btn.primary { flex: 1; min-width: 0; }
+.gacts .btn:not(.primary) { width: 36px; padding: 0; flex: none; } .gacts .btn .lbl-s { display: none; }
 .gacts .btn[data-act="save"] { width: 36px; padding: 0; flex: none; } .gacts .btn[data-act="save"] .lbl-s { display: none; }
 .who small .ok { color: var(--ok); font-weight: 500; }
 .gcard .more { grid-template-columns: 1fr; padding: 0 12px 12px; }
@@ -315,6 +379,14 @@ button.stat { border: 0; text-align: left; }
 .sw input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
 .sw input:checked { background: var(--text); } .sw input:checked::after { left: 19px; }
 .lightbox .dialog { width: min(1040px, 100%); background: var(--surface); padding: 0; }
+.cw-head { flex-wrap: wrap; }
+.cw-head h3 { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-tabs { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--surface-3); }
+.cw-tabs button { height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font: 500 13px var(--font); cursor: pointer; white-space: nowrap; }
+.cw-tabs button:hover { color: var(--text); }
+.cw-tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); font-weight: 600; }
+.cw-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.cw-bar .grow { flex: 1; }
 .lb-img { padding: 14px; background: var(--surface-2); }
 .lb-img img { max-height: calc(100vh - 140px); object-fit: contain; margin: 0 auto; width: 100%; display: block; border-radius: 8px; box-shadow: var(--shadow-2); }
 /* ---------- adjust editor ---------- */
@@ -329,6 +401,9 @@ button.stat { border: 0; text-align: left; }
 .pf-group { display: grid; gap: 8px; }
 .pf-row { grid-template-columns: 96px 1fr 48px; }
 .pf-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-top: 6px; cursor: pointer; }
+.tchip.tool-chip { margin-left: 10px; position: relative; }
+.tchip.tool-chip.tool-next { margin-left: 0; } .tchip.tool-chip.tool-next::before { display: none; }
+.tchip.tool-chip::before { content: ""; position: absolute; left: -10px; top: 12px; bottom: 12px; border-left: 1px solid var(--line); }
 .adj-row { display: grid; grid-template-columns: 82px 1fr 40px; align-items: center; gap: 8px; font-size: 13px; }
 .adj-row input[type=range] { width: 100%; accent-color: var(--accent); }
 .adj-row output { font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
@@ -500,6 +575,7 @@ select.text { appearance: auto; }
       Card Print Studio <span class="plan">Pro</span>
       <span class="crumb">/ <b id="crumb">Exports</b></span>
     </div>
+    <button class="btn quiet" id="toolBack" hidden><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>Back to exports</button>
     <div class="grow"></div>
     <label class="search"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
       <input id="search" placeholder="Search name, document no. or job ref" spellcheck="false" aria-label="Search exports"><span class="kbd">/</span></label>
@@ -510,45 +586,22 @@ select.text { appearance: auto; }
   </header>
 
   <div class="body">
-    <aside class="side" aria-label="New job">
-      <div class="sec">
-        <h2>New job</h2>
-        <p class="lead">Pick the card type, then add one PDF or a whole batch.</p>
-        <div class="step"><span class="n">1</span>Card type</div>
-        <div id="types" role="radiogroup" aria-label="Card type"></div>
-        <div id="rcBox" hidden style="margin:12px 0 0">
-          <label class="t" for="rcNo" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Rice card (RC) number</label>
-          <input class="text mono" id="rcNo" inputmode="numeric" placeholder="10-digit RC number" autocomplete="off">
-          <p class="hint" style="margin:4px 0 0">Members, shop and district come from AePDS. Upload the <b>head of family's</b> e-Aadhaar for the photo, DOB and address.</p>
-          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
-            <label class="t" for="epdsText" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Members' dates of birth <span class="hint" style="font-weight:400">(optional, from EPDS)</span></label>
-            <button class="btn" id="epdsOpen" type="button" style="width:100%;justify-content:center" title="Opens EPDS and copies the RC number">Open EPDS rice card search</button>
-            <p class="hint" style="margin:6px 0">On EPDS: <b>Rice card search</b> &rarr; paste the number (Ctrl+V) &rarr; Submit &rarr; press <b>Ctrl+A</b>, <b>Ctrl+C</b> and paste below.</p>
-            <textarea class="text" id="epdsText" rows="2" style="width:100%;resize:vertical;font-size:12.5px" placeholder="Paste the EPDS result page here (Ctrl+V)" spellcheck="false"></textarea>
-            <div class="hint" id="epdsInfo" style="margin-top:4px"></div>
-          </div>
-        </div>
-        <div class="step"><span class="n">2</span>Add PDFs</div>
-        <label class="drop" id="drop">
-          <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
-          <span class="up"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
-          <b>Drop PDFs or click to choose</b>
-          <span>Select many at once &ndash; processed as <span class="as" id="chosenType">Auto-detect</span></span>
-        </label>
-        <div class="dest">
-          <span class="lbl">Save to</span><span class="p" id="destPath">…</span>
-          <span class="auto-on" id="autoPill" hidden>Auto-save</span>
-          <button class="btn quiet" id="changeDest" style="height:26px;padding:0 8px;font-size:12.5px">Change</button>
-        </div>
-      </div>
-      <div class="session" aria-label="This session">
-        <div class="stat"><b id="stReady">0</b><span>Ready</span></div>
-        <div class="stat"><b id="stSaved">0</b><span>Saved</span></div>
-        <button class="stat attn" id="stAttnBtn" title="Show items that need attention"><b id="stAttn">0</b><span>Need action</span></button>
-      </div>
-    </aside>
 
     <main class="main">
+      <section class="addbar" aria-label="Add PDFs">
+        <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple hidden>
+        <div class="add-row">
+          <div class="add-lead"><span class="rn"><b>Add PDFs</b><button class="btn quiet" id="renameTypes" title="Give the card types your own names"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>Rename types</button><span id="renameActs" hidden><button class="btn quiet" id="renameReset" title="Back to the standard names">Standard names</button><button class="btn quiet" id="renameCancel">Cancel</button><button class="btn primary" id="renameSave">Save names</button></span></span><span>Click a card type to choose files &ndash; or drag PDFs onto the page and drop them on a card type</span></div>
+          <div class="add-meta">
+            <span class="lbl">Save to</span><span class="p" id="destPath">…</span><span class="auto-on" id="autoPill" hidden>Auto-save</span>
+            <button class="btn quiet" id="changeDest">Change</button>
+            <span class="sep"></span>
+            <span class="mini"><b id="stReady">0</b> ready</span><span class="mini"><b id="stSaved">0</b> saved</span>
+            <button class="mini attn" id="stAttnBtn" title="Show items that need attention"><b id="stAttn">0</b> need action</button>
+          </div>
+        </div>
+        <div class="chips" id="types" role="list" aria-label="Card types"></div>
+      </section>
       <div class="selbar" id="selbar" role="toolbar" aria-label="Selected cards" hidden></div>
       <div class="mhead">
         <h1>Exports</h1><span class="count" id="count"></span>
@@ -567,11 +620,14 @@ select.text { appearance: auto; }
         <div class="empty" id="empty">
           <div class="icons" id="emptyIcons"></div>
           <h3>No exports yet</h3>
-          <p>Choose a card type on the left and add the PDFs. You can select a whole batch at once &ndash; each PDF becomes its own front &amp; back export here.</p>
+          <p>Click a card type above, or drag PDFs onto the page. You can select a whole batch at once &ndash; each PDF becomes its own front &amp; back export here.</p>
         </div>
       </div>
     </main>
   </div>
+
+  <!-- Passport photos / Card scan, opened in place (same top bar, no page change) -->
+  <div class="toolhost" id="toolHost" hidden><iframe id="toolFrame" title="Tool" allow="clipboard-read; clipboard-write"></iframe></div>
 
   <!-- settings page (route #settings/<tab>) -->
   <div class="spage" id="spage" hidden>
@@ -653,15 +709,51 @@ select.text { appearance: auto; }
   </div>
 </div>
 
+<div class="overlay" id="rationOv">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="rationTitle" style="width:min(520px,100%)">
+    <div class="dhead"><h3 id="rationTitle">Ration Card</h3><button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dbody">
+      <div id="rcBox">
+          <label class="t" for="rcNo" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Rice card (RC) number</label>
+          <input class="text mono" id="rcNo" inputmode="numeric" placeholder="10-digit RC number" autocomplete="off">
+          <p class="hint" style="margin:4px 0 0">Members, shop and district come from AePDS. Upload the <b>head of family's</b> e-Aadhaar for the photo, DOB and address.</p>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+            <label class="t" for="epdsText" style="display:block;font-size:13px;font-weight:500;margin-bottom:4px">Members' dates of birth <span class="hint" style="font-weight:400">(optional, from EPDS)</span></label>
+            <button class="btn" id="epdsOpen" type="button" style="width:100%;justify-content:center" title="Opens EPDS and copies the RC number">Open EPDS rice card search</button>
+            <p class="hint" style="margin:6px 0">On EPDS: <b>Rice card search</b> &rarr; paste the number (Ctrl+V) &rarr; Submit &rarr; press <b>Ctrl+A</b>, <b>Ctrl+C</b> and paste below.</p>
+            <textarea class="text" id="epdsText" rows="2" style="width:100%;resize:vertical;font-size:12.5px" placeholder="Paste the EPDS result page here (Ctrl+V)" spellcheck="false"></textarea>
+            <div class="hint" id="epdsInfo" style="margin-top:4px"></div>
+          </div>
+        </div>
+      <p class="hint" id="rationFiles" style="margin:0"></p>
+    </div>
+    <div class="dfoot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="rationGo">Choose the Aadhaar PDF</button></div>
+  </div>
+</div>
+
+<div class="dropov" id="dropOv" aria-hidden="true">
+  <div class="dropov-in">
+    <h2>Drop on a card type</h2>
+    <p>&hellip;or anywhere else here for <b>Auto-detect</b></p>
+    <div class="droptiles" id="dropTiles"></div>
+  </div>
+</div>
+
 <div class="overlay lightbox" id="lightbox">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
-    <div class="dhead"><h3 id="lbTitle"></h3>
-      <div class="seg" id="lbSides"><button data-s="Front">Front</button><button data-s="Back">Back</button></div>
-      <button class="btn" id="lbAdj" title="Adjust the photo on this side – brightness, contrast, colour"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Adjust photo</button>
-      <button class="btn" id="lbPf" title="PAN front – gap under Name / Father's Name, signature size, position and ink" hidden></button>
-      <button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download</button>
+  <div class="dialog cw" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+    <div class="dhead cw-head"><h3 id="lbTitle"></h3>
+      <div class="cw-tabs" id="cwTabs" role="tablist" aria-label="Card window">
+        <button role="tab" data-tab="preview">Preview</button>
+        <button role="tab" data-tab="adjust">Adjust photo</button>
+        <button role="tab" data-tab="panfront">PAN front</button>
+      </div>
       <button class="btn quiet icon" data-close aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="lb-img"><img id="lbImg" alt=""></div>
+    <section class="cw-panel" data-panel="preview">
+      <div class="cw-bar"><div class="seg" id="lbSides"></div><span class="grow"></span><button class="btn" id="lbDl"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 10l6 6 6-6"/><path d="M4 20h16"/></svg>Download this side</button></div>
+      <div class="lb-img"><img id="lbImg" alt=""></div>
+    </section>
+    <section class="cw-panel" data-panel="adjust" hidden><span id="adjTitle" hidden></span><div class="dbody" id="adjBody"></div><div class="dfoot" id="adjFoot"></div></section>
+    <section class="cw-panel" data-panel="panfront" hidden><span id="pfTitle" hidden></span><div class="dbody" id="pfBody"></div><div class="dfoot" id="pfFoot"></div></section>
   </div>
 </div>
 
@@ -676,6 +768,10 @@ let settings = {}, cardType = 'auto', jobs = [], query = '', tab = 'all';
 let sel = [];          // keys of ticked cards, in the order they were ticked (1st = tray slot 1)
 let view = store.get('cps-view2') === 'cards' ? 'cards' : 'rows';
 
+const PP_ICON = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gPp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffedd5"/><stop offset="1" stop-color="#fdba74"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gPp)"/><rect x="9" y="16" width="46" height="32" rx="2.5" fill="#fff"/>
+    <g fill="#9a3412">${[0, 1, 2, 3].flatMap(c => [0, 1].map(r => `<rect x="${12 + c * 10.5}" y="${19 + r * 14.5}" width="8" height="11.5" rx="1"/>`)).join('')}</g>
+    <g fill="#fed7aa">${[0, 1, 2, 3].flatMap(c => [0, 1].map(r => `<circle cx="${16 + c * 10.5}" cy="${23.5 + r * 14.5}" r="2"/>`)).join('')}</g></svg>`;
 const ICON = {
   auto: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gAu" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e0e7ff"/><stop offset="1" stop-color="#a5b4fc"/></linearGradient></defs>
     <rect width="64" height="64" rx="15" fill="url(#gAu)"/>
@@ -725,6 +821,15 @@ ICON.pmjay = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient 
     <path d="M32 13l15 6v11c0 10-6.5 17-15 21-8.5-4-15-11-15-21V19z" fill="#fff"/>
     <path d="M32 22v20M22 32h20" stroke="#1b7a3a" stroke-width="5" stroke-linecap="round"/></svg>`;
 ICON.aadhaar_lam = ICON.aadhaar.replace('</svg>', '<rect x="34" y="44" width="26" height="16" rx="4" fill="#65a30d"/><text x="47" y="56" text-anchor="middle" font-family="Segoe UI, Arial" font-size="11" font-weight="800" fill="#fff">A4</text></svg>');
+ICON.passport = PP_ICON;
+const SCAN_ICON = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gSc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/></linearGradient></defs>
+    <rect width="64" height="64" rx="15" fill="url(#gSc)"/>
+    <g fill="none" stroke="#1e293b" stroke-width="3.2" stroke-linecap="round"><path d="M12 21v-6a3 3 0 0 1 3-3h6M43 12h6a3 3 0 0 1 3 3v6M52 43v6a3 3 0 0 1-3 3h-6M21 52h-6a3 3 0 0 1-3-3v-6"/></g>
+    <rect x="18" y="22" width="28" height="20" rx="3" fill="#fff" stroke="#1e293b" stroke-width="2"/><rect x="21" y="26" width="7" height="9" rx="1" fill="#0ea5e9"/>
+    <path d="M31 28h11M31 32h8M31 36h10" stroke="#1e293b" stroke-width="2" stroke-linecap="round"/><path d="M10 32h44" stroke="#ef4444" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+ICON.scan = SCAN_ICON;
+const TOOLS = [['passport', PP_ICON, '8 photos (35 × 45 mm) on a 6 × 4 inch sheet'],
+               ['scan', SCAN_ICON, 'photo or scan of the customer’s own card → straight PVC card']];
 const TYPE_INFO = {
   auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
   aadhaar: {name: 'Aadhaar PVC',     short: 'Aadhaar',     dot: '#16a34a', sub: 'e-Aadhaar letter, locked or not'},
@@ -732,9 +837,11 @@ const TYPE_INFO = {
   aadhaar_lam: {name: 'Aadhaar Laminated', short: 'Aadhaar A4', dot: '#65a30d', sub: 'A4 sheets for lamination: Full, Both and Small, with the green tick + timestamp'},
   pan:     {name: 'PAN Card',        short: 'PAN',         dot: '#4f46e5', sub: 'e-PAN or Instant e-PAN'},
   voter:   {name: 'Voter ID',        short: 'Voter ID',    dot: '#ea580c', sub: 'e-EPIC sheet'},
-  dl:      {name: 'Driving Licence', short: 'Driving Licence', dot: '#2563eb', sub: '2-page DL PDF'},
+  dl:      {name: 'Driving Licence', short: 'DL', dot: '#2563eb', sub: '2-page DL PDF'},
   rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
   abha:    {name: 'ABHA Card',       short: 'ABHA',        dot: '#27388f', sub: 'ABHA card PDF from the ABHA app / abha.abdm.gov.in'},
+  scan:    {name: 'Scanned card',    short: 'Card scan',   dot: '#64748b', sub: 'Photo or scan of a physical card'},
+  passport: {name: 'Passport photos', short: 'Passport photos', dot: '#f97316', sub: '8 photos, 35 × 45 mm, on a 6 × 4 inch sheet'},
   pmjay:   {name: 'Ayushman Card',   short: 'Ayushman',    dot: '#f26522', sub: 'PM-JAY / Dr. NTR Vaidya Seva card PDF (beneficiary.nha.gov.in)'},
 };
 const typeName = k => (TYPE_INFO[k] || {}).name || k;
@@ -820,7 +927,7 @@ function applyPattern(pattern, j, side) {
   return out || ('card_' + String(side).toUpperCase());
 }
 const baseName = j => applyPattern((settings.name_pattern || DEFAULT_PATTERN).replace('{side}', ''), j, '');
-const SAMPLE = {source: '01011961', ref: 'JOB-7K4Q-2XM9', details: {type_label: 'PAN', name: 'C REDDAMMA', id4: '017N'}};
+const SAMPLE = {source: '01011990', ref: 'JOB-7K4Q-2XM9', details: {type_label: 'PAN', name: 'SAMPLE NAME', id4: '1234'}};
 
 /* ---------- theme ---------- */
 const effTheme = () => { const t = document.documentElement.dataset.theme; return (t === 'light' || t === 'dark') ? t : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); };
@@ -836,17 +943,45 @@ function pickHtml(k, cls) {
       ${cls === 'auto' ? `<span><b>Auto-detect</b><small>Recommended &ndash; recognises every card type</small></span>` : `<b>${esc(t.short || k)}</b>`}
       <span class="tick">${SVG.check}</span></button>`;
 }
-function renderTypes() {
-  const keys = Object.keys(settings.card_types || {auto: 1});
-  let h = keys.includes('auto') ? pickHtml('auto', 'auto') : '';
-  for (const [label, ks] of CATS) {
-    const list = ks.filter(k => keys.includes(k)); if (!list.length) continue;
-    h += `<div class="group">${label}</div><div class="tiles">${list.map(k => pickHtml(k, 'tile')).join('')}</div>`;
+const typeKeys = () => { const keys = Object.keys(settings.card_types || {auto: 1});
+  return [...(keys.includes('auto') ? ['auto'] : []), ...CATS.flatMap(([, ks]) => ks.filter(k => keys.includes(k)))]; };
+let renaming = false;
+const ORIG_NAMES = {};
+function applyTypeNames() {          // the shop's own names (settings.type_names) everywhere a type is shown
+  for (const [k, t] of Object.entries(TYPE_INFO)) {
+    if (!ORIG_NAMES[k]) ORIG_NAMES[k] = {name: t.name, short: t.short};
+    const own = (settings.type_names || {})[k];
+    t.name = own || ORIG_NAMES[k].name; t.short = own || ORIG_NAMES[k].short;
   }
-  $('#types').innerHTML = h;
-  $('#chosenType').textContent = typeName(cardType);
-  $('#emptyIcons').innerHTML = ['aadhaar', 'pan', 'voter', 'dl', 'rc'].map(k => `<span title="${esc(typeName(k))}">${ICON[k]}</span>`).join('');
 }
+function renderTypes() {
+  applyTypeNames();
+  $('#types').classList.toggle('editing', renaming);
+  $('#types').innerHTML = typeKeys().map(k => { const t = TYPE_INFO[k] || {}, label = t.short || k;
+    return renaming
+      ? `<div class="tchip ${k === 'auto' ? 'auto-chip' : ''}" role="listitem"><span class="ic">${ICON[k] || ''}</span><input data-rn="${k}" value="${esc(label)}" maxlength="24" placeholder="${esc((ORIG_NAMES[k] || {}).short || k)}" aria-label="Name for ${esc((ORIG_NAMES[k] || {}).name || k)}"></div>`
+      : `<button type="button" class="tchip ${k === 'auto' ? 'auto-chip' : ''}" role="listitem" data-k="${k}" title="${esc(t.name || k)}${t.sub ? ' – ' + esc(t.sub) : ''}"><span class="ic">${ICON[k] || ''}</span><span class="nm">${esc(label)}</span></button>`; }).join('')
+    + TOOLS.map(([k, icon, sub], i) => renaming   // the tool tiles can be renamed too
+      ? `<div class="tchip tool-chip ${i ? 'tool-next' : ''}" role="listitem"><span class="ic">${icon}</span><input data-rn="${k}" value="${esc(TYPE_INFO[k].short)}" maxlength="24" placeholder="${esc(ORIG_NAMES[k].short)}" aria-label="Name for ${esc(ORIG_NAMES[k].name)}"></div>`
+      : `<button type="button" class="tchip tool-chip ${i ? 'tool-next' : ''}" role="listitem" data-tool="${k}" title="${esc(TYPE_INFO[k].name)} – ${esc(sub)}"><span class="ic">${icon}</span><span class="nm">${esc(TYPE_INFO[k].short)}</span></button>`).join('');
+  $('#dropTiles').innerHTML = typeKeys().map(k => `<div class="droptile" data-k="${k}"><span class="ic">${ICON[k] || ''}</span><b>${esc(typeName(k))}</b></div>`).join('');
+  $('#emptyIcons').innerHTML = ['aadhaar', 'pan', 'voter', 'dl', 'rc'].map(k => `<span title="${esc(typeName(k))}">${ICON[k]}</span>`).join('');
+  $('#renameTypes').hidden = renaming; $('#renameActs').hidden = !renaming;
+}
+function setRenaming(on) { renaming = on; renderTypes(); if (on) document.querySelector('[data-rn]')?.select(); }
+$('#renameTypes').onclick = () => setRenaming(true);
+$('#renameCancel').onclick = () => setRenaming(false);
+$('#renameReset').onclick = () => document.querySelectorAll('[data-rn]').forEach(i => { i.value = (ORIG_NAMES[i.dataset.rn] || {}).short || ''; });
+$('#renameSave').onclick = async () => {
+  const names = {};
+  document.querySelectorAll('[data-rn]').forEach(i => { const v = i.value.trim(), k = i.dataset.rn;
+    if (v && v !== (ORIG_NAMES[k] || {}).short) names[k] = v; });
+  try { Object.assign(settings, await api('/api/settings', {type_names: names})); renaming = false; renderTypes(); render(); toast('Card type names saved'); }
+  catch (e) { toast(e.message, {error: true}); }
+};
+$('#types').addEventListener('keydown', e => { if (!renaming) return;
+  if (e.key === 'Enter') $('#renameSave').click();
+  if (e.key === 'Escape') { e.stopPropagation(); setRenaming(false); } });
 /* ---------- EPDS rice card search (members' real dates of birth) ---------- */
 const EPDS_URL = 'https://epds.ap.gov.in/epdsAP/epds/publicepdsDashBoard.epds';
 let epdsParsed = null;
@@ -888,9 +1023,28 @@ async function fillFromEpds(j, box) {
 }
 
 $('#types').addEventListener('click', e => {
-  const b = e.target.closest('.pick'); if (!b) return;
-  cardType = b.dataset.k; renderTypes(); $('#rcBox').hidden = cardType !== 'ration'; if (cardType === 'ration') $('#rcNo').focus();
+  if (renaming) return;                        // typing a new name - never open the file picker
+  if (e.target.closest('[data-tool="passport"]')) { openPassport(); return; }
+  if (e.target.closest('[data-tool="scan"]')) { openTool('Card scan', '/scan?embed=1'); return; }
+  const b = e.target.closest('.tchip[data-k]'); if (!b) return;
+  if (b.dataset.k === 'ration') { openRation(); return; }
+  cardType = b.dataset.k; $('#fileInput').click();
 });
+/* Ration Card: RC number (+ EPDS dates) in its own window, then the head of family's e-Aadhaar */
+let rationPending = null;
+function openRation(files) {
+  rationPending = files && files.length ? [...files] : null;
+  $('#rationFiles').textContent = rationPending ? `Ready to add: ${rationPending.map(f => f.name).join(', ')}` : '';
+  $('#rationGo').textContent = rationPending ? 'Make the ration card' : 'Choose the Aadhaar PDF';
+  $('#rationOv').classList.add('open'); setTimeout(() => $('#rcNo').focus(), 30);
+}
+$('#rationOv').addEventListener('click', e => { if (e.target.id === 'rationOv' || e.target.closest('[data-close]')) $('#rationOv').classList.remove('open'); });
+$('#rationGo').onclick = () => {
+  if ($('#rcNo').value.replace(/\D/g, '').length < 8) { toast('Enter the rice card (RC) number first', {error: true}); $('#rcNo').focus(); return; }
+  cardType = 'ration';
+  if (rationPending) { if (addFiles(rationPending, 'ration')) $('#rationOv').classList.remove('open'); }
+  else $('#fileInput').click();
+};
 
 /* ---------- settings ---------- */
 async function loadSettings() {
@@ -949,7 +1103,7 @@ function settingsTabs() {
              {id: 'names', group: 'Workspace', name: 'File names', icon: SICON.names, desc: 'How exported card images are named.', dirtyAware: true},
              {id: 'network', group: 'Workspace', name: 'Network sharing', icon: SICON.network, desc: 'Let other PCs in the shop use this website.'}];
   for (const p of PLUGINS) if (p.enabled && !p.error && p.ui)
-    t.push({id: 'p-' + p.id, group: 'Printers & plugins', name: ({epson_pvc: 'Card printer · Epson', office_print: 'A4 printer · Office'})[p.id] || p.name.replace(/ printing$/i, ''),
+    t.push({id: 'p-' + p.id, group: 'Printers & plugins', name: ({epson_pvc: 'Card printer · Epson', office_print: 'A4 printer · Office', photo_print: 'Photo printer · 4×6'})[p.id] || p.name.replace(/ printing$/i, ''),
             icon: /pvc|card/i.test(p.id + ' ' + p.name) ? SICON.card : SICON.printer, desc: p.description, plugin: p});
   t.push({id: 'plugins', group: 'Printers & plugins', name: 'Manage plugins', icon: SICON.plugins, desc: 'Turn optional features on or off.'});
   return t;
@@ -1030,7 +1184,9 @@ $('#saveSettings').onclick = async () => {
     setDirty(false); render(); toast('Settings saved');
   } catch (e) { toast(e.message, {error: true}); }
 };
-document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-close]')) o.classList.remove('open'); }));
+// a click on the dark background closes a window - not the passport editor (closing it there loses the work, and the
+// second click of a double-click in the Windows file picker lands on that background)
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if ((e.target === o && !o.hasAttribute('data-keep')) || e.target.closest('[data-close]')) o.classList.remove('open'); }));
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     const open = document.querySelectorAll('.overlay.open');
@@ -1041,24 +1197,71 @@ document.addEventListener('keydown', e => {
 });
 $('#openFolderBtn').onclick = () => api('/api/open-folder', {}).catch(e => toast(e.message, {error: true}));
 
+/* a photo dropped on the main page is handed to the passport page (kept in this browser only, removed when read) */
+const handoff = {
+  db: () => new Promise((ok, bad) => { const r = indexedDB.open('cps-handoff', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); }),
+  async put(file) { const db = await this.db();
+    await new Promise((ok, bad) => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(file, 'passport'); t.oncomplete = ok; t.onerror = () => bad(t.error); }); },
+  async take() { try { const db = await this.db();
+    return await new Promise(ok => { const t = db.transaction('f', 'readwrite'), s = t.objectStore('f'), g = s.get('passport');
+      g.onsuccess = () => { s.delete('passport'); ok(g.result || null); }; g.onerror = () => ok(null); }); } catch { return null; } },
+};
+// Passport photos has its own page; a photo dropped here is handed over to it
+async function openPassport(file) {
+  if (file) { try { await handoff.put(file); } catch {} openTool('Passport photos', '/passport?embed=1&photo=1'); }
+  else openTool('Passport photos', '/passport?embed=1');
+}
+/* open a tool (Passport photos / Card scan) in a panel over the exports area - same top bar, no page change */
+function openTool(name, src) {
+  $('#toolFrame').src = src; $('#toolHost').hidden = false;
+  document.body.classList.add('tool-open'); $('#crumb').textContent = name; $('#toolBack').hidden = false;
+}
+function closeTool() {
+  $('#toolHost').hidden = true; $('#toolFrame').removeAttribute('src');
+  document.body.classList.remove('tool-open'); $('#crumb').textContent = 'Exports'; $('#toolBack').hidden = true;
+}
+$('#toolBack').onclick = closeTool;
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== $('#toolFrame').contentWindow) return;
+  const m = e.data || {};
+  if (m.cps === 'tool-close') closeTool();
+  else if (m.cps === 'tool-done') { closeTool(); loadHistory().then(() => showAddedJob(m.job, m.updated)); }
+});
+
 /* ---------- upload / queue ---------- */
-const drop = $('#drop');
-$('#fileInput').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
-['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
-window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
+$('#fileInput').onchange = e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (files.length && addFiles(files, cardType) && cardType === 'ration') $('#rationOv').classList.remove('open');
+};
+const dropOv = $('#dropOv'); let dragDepth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+const tileAt = e => e.target.closest && e.target.closest('.droptile');
+window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; dropOv.classList.add('open'); });
+window.addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; dropOv.classList.remove('open'); } });
+window.addEventListener('dragover', e => { e.preventDefault(); if (!hasFiles(e)) return;
+  document.querySelectorAll('.droptile.over').forEach(t => t !== tileAt(e) && t.classList.remove('over')); tileAt(e)?.classList.add('over'); });
+window.addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; dropOv.classList.remove('open');
+  const t = tileAt(e), k = t ? t.dataset.k : 'auto'; document.querySelectorAll('.droptile.over').forEach(x => x.classList.remove('over'));
+  if (!e.dataTransfer?.files?.length) return;
+  const img = [...e.dataTransfer.files].find(f => /\.(jpe?g|png|webp|bmp)$/i.test(f.name));
+  if (img && ![...e.dataTransfer.files].some(f => /\.pdf$/i.test(f.name))) { openPassport(img); return; }
+  if (k === 'ration') { openRation(e.dataTransfer.files); return; }
+  addFiles(e.dataTransfer.files, k);
+});
 let queue = Promise.resolve();
-function addFiles(list) {
+function addFiles(list, type = cardType) {
+  cardType = type;
   const files = [...list].filter(f => /\.pdf$/i.test(f.name));
-  if (!files.length) { toast('Please choose PDF files', {error: true}); return; }
+  if (!files.length) { toast('Please choose PDF files', {error: true}); return false; }
   const rc = cardType === 'ration' ? $('#rcNo').value.replace(/\D/g, '') : '';
-  if (cardType === 'ration' && rc.length < 8) { toast('Enter the rice card (RC) number first', {error: true}); $('#rcNo').focus(); return; }
+  if (cardType === 'ration' && rc.length < 8) { toast('Enter the rice card (RC) number first', {error: true}); openRation(files); return false; }
   if (cardType === 'ration' && epdsParsed && epdsParsed.rc_no && epdsParsed.rc_no !== rc) {
-    toast(`The pasted EPDS page is for RC ${epdsParsed.rc_no}, not ${rc}`, {error: true}); return;
+    toast(`The pasted EPDS page is for RC ${epdsParsed.rc_no}, not ${rc}`, {error: true}); return false;
   }
   const epds = cardType === 'ration' && epdsParsed ? $('#epdsText').value : '';
-  if (cardType === 'ration' && files.length > 1) { toast('Ration Card: add one Aadhaar PDF per RC number', {error: true}); return; }
+  if (cardType === 'ration' && files.length > 1) { toast('Ration Card: add one Aadhaar PDF per RC number', {error: true}); return false; }
   if (files.length > 1) toast(`${files.length} PDFs added – processing one after another`);
   for (const f of files) {
     const j = {key: Math.random().toString(36).slice(2), source: f.name.replace(/\.pdf$/i, ''), state: 'waiting', names: {}, edited: {}, type: cardType, file: f, side: 'Front', rc, epds};
@@ -1067,6 +1270,7 @@ function addFiles(list) {
   if (epds) { $('#epdsText').value = ''; epdsParsed = null; $('#epdsInfo').textContent = ''; }   // next family starts clean
   if (tab !== 'all' && tab !== cardType) tab = 'all';
   render();
+  return true;
 }
 async function processJob(j, file, password) {
   j.state = 'working'; j.error = ''; render();
@@ -1091,12 +1295,26 @@ async function processJob(j, file, password) {
 /* ---------- history (kept on the server, survives refresh / restart) ---------- */
 function fromServer(d) {
   const j = {key: d.job, source: d.source, state: 'done', type: d.type, side: 'Front', rc: '', file: null,
-    job: d.job, sides: d.sides, usedType: d.type, details: d.details || {}, ref: d.ref, hasPhoto: !!d.has_photo, pdf: !!d.has_pdf,
+    job: d.job, sides: d.sides, usedType: d.type, scan: !!d.scan, details: d.details || {}, ref: d.ref, hasPhoto: !!d.has_photo, pdf: !!d.has_pdf,
     ration: d.ration || null, doneAt: d.done_at ? new Date(d.done_at) : null, saved: !!d.saved, v: d.v || 0,
     photoBox: d.photo_box || {}, adjust: d.adjust || {}, hologram: d.hologram || null, panFront: d.pan_front || null,
     names: {}, edited: {...(d.edited || {})}};
   j.sides.forEach(s => j.names[s] = j.edited[s] && d.names?.[s] ? d.names[s] : applyPattern(settings.name_pattern, j, s));
   return j;
+}
+async function passportAdded() {             // fallback if a tool page was opened full-screen (?added/?updated)
+  const q = new URLSearchParams(location.search), id = q.get('added') || q.get('updated');
+  if (!id) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  await showAddedJob(id, !!q.get('updated'));
+}
+async function showAddedJob(id, updated) {   // a tool added or updated a job: show it at the top of the list
+  const j = jobs.find(x => x.job === id);
+  if (!j) return;
+  tab = 'all'; query = ''; $('#search').value = ''; render();
+  const what = isPassport(j) ? 'Passport photos' : 'Scanned card';
+  toast(updated ? `${what} updated` : `${what} added to the exports`);
+  if (settings.auto_save) await saveItems(itemsOf(j), true);
 }
 async function loadHistory() {
   try {
@@ -1131,6 +1349,8 @@ function downloadOne(j, side) {
 }
 const downloadBoth = j => j.sides.forEach((s, i) => setTimeout(() => downloadOne(j, s), i * 350));
 /* A4 PDF: front + back side by side at real PVC size, with cut marks (4 cards per page) */
+const EDIT_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+const PRINT_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>';
 const A4_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="1.5"/><rect x="7.5" y="6" width="4" height="3" rx=".5"/><rect x="12.5" y="6" width="4" height="3" rx=".5"/></svg>';
 const a4Btn = j => j.pdf ? '' : `<button class="btn quiet" data-act="a4" data-key="${j.key}" title="A4 PDF: front and back side by side at real PVC size, with cut marks">${A4_ICON}A4 PDF</button>`
   + panelActions(j);
@@ -1207,54 +1427,53 @@ function avatarHtml(j) {
   const t = typeOf(j);
   if (j.state === 'done' && t === 'rc') return `<span class="ava sq" title="Vehicle RC">${ICON.rc}</span>`;
   const badge = t && ICON[t] ? `<span class="tb">${ICON[t]}</span>` : '';
-  if (j.state === 'done' && j.hasPhoto) return `<span class="ava"><img src="/api/photo/${j.job}" alt="" loading="lazy">${badge}</span>`;
+  if (j.state === 'done' && j.hasPhoto) return `<span class="ava"><img src="/api/photo/${j.job}?v=${j.v || 0}" alt="" loading="lazy">${badge}</span>`;
   if (j.state === 'working') return `<span class="ava"><span class="spin"></span></span>`;
   return `<span class="ava">${esc(initials(j.details?.name || j.source))}${badge}</span>`;
 }
 function whoHtml(j) {
   const n = j.details?.name;
   const title = n ? `<b title="${esc(n)}">${esc(n)}</b>` : (j.state === 'done' ? `<b class="unk" title="This PDF has no readable name (e.g. a scanned Voter ID)">Name not in PDF</b>` : `<b>${esc(j.source)}.pdf</b>`);
-  let sub = (j.doneAt ? `${esc(whenText(j))} &middot; ` : '') + `${esc(j.source)}.pdf` + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
+  let sub = (j.doneAt ? `${esc(whenText(j))} &middot; ` : '') + (isPassport(j) ? 'Passport photos' : j.scan ? 'Scanned card' : `${esc(j.source)}.pdf`) + (j.saved ? ' &middot; <span class="ok">&#10003; Saved</span>' : '');
   if (j.state === 'waiting') sub = 'Waiting in queue';
   if (j.state === 'working') sub = 'Processing…';
-  return `<span class="who">${title}<small title="${esc(j.source)}.pdf">${sub}</small>${j.ref ? `<small class="refline mono">${esc(j.ref)}</small>` : ''}</span>`;
+  return `<span class="who">${title}<small title="${esc(j.source)}${isPassport(j) || j.scan ? '' : '.pdf'}">${sub}</small>${j.ref ? `<small class="refline mono">${esc(j.ref)}</small>` : ''}</span>`;
 }
 const chipHtml = t => t && TYPE_INFO[t] ? `<span class="chip"><i style="background:${TYPE_INFO[t].dot}"></i>${esc(TYPE_INFO[t].name)}</span>` : '';
-const docHtml = j => j.details?.id4 ? `<span class="docno"><span class="l">${esc(j.details.id_label)}</span>•••• ${esc(j.details.id4)}</span>` : `<span class="docno" style="color:var(--faint);font-family:var(--font);font-size:12.5px" title="This PDF has no readable document number">No number in PDF</span>`;
+const docHtml = j => j.scan ? `<span class="docno" style="font-family:var(--font);font-size:12.5px" title="Made from a photo / scan of the card">From a scan</span>` : isPassport(j) ? `<span class="docno" style="font-family:var(--font);font-size:12.5px">8 × 35×45 mm · 6×4 in</span>` : j.details?.id4 ? `<span class="docno"><span class="l">${esc(j.details.id_label)}</span>•••• ${esc(j.details.id4)}</span>` : `<span class="docno" style="color:var(--faint);font-family:var(--font);font-size:12.5px" title="This PDF has no readable document number">No number in PDF</span>`;
 const refHtml = j => j.ref ? `<button class="ref" data-act="copyref" data-key="${j.key}" title="Job reference – click to copy">${esc(j.ref)}${SVG.copy}</button>` : '';
 function whenText(j) {
   if (!j.doneAt) return '';
   const d = j.doneAt, t = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   return d.toDateString() === new Date().toDateString() ? `Today, ${t}` : d.toLocaleDateString([], {day: 'numeric', month: 'short'}) + ', ' + t;
 }
-const isSheet = j => typeOf(j) === 'aadhaar_lam';
+const isSheet = j => typeOf(j) === 'aadhaar_lam' || typeOf(j) === 'passport';
+const isPassport = j => typeOf(j) === 'passport';
 function curSide(j) { return (j.sides || []).includes(j.side) ? j.side : (j.sides || ['Front'])[0]; }
+const FLIP_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>';
 function flipHtml(j) {
-  if (isSheet(j)) {                       // A4 sheets: show the current one, step through the others
-    const s = curSide(j), i = j.sides.indexOf(s), next = j.sides[(i + 1) % j.sides.length];
-    return `<div class="flip sheet" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
-      <span class="side-tag">${esc(s)}</span>
-      <div class="in"><div class="face f"><img src="${img(j, s)}" alt="${esc(s)}" loading="lazy"></div></div>
-      <div class="tools"><button class="ft" data-act="flip" data-key="${j.key}" title="Show ${esc(next)}" aria-label="Show ${esc(next)}">${SVG.flip}<span class="lbl">${esc(next)}</span></button>
-        <button class="ft adj" data-act="adjust" data-key="${j.key}" title="Adjust the face – brightness, contrast, colour (all sheets)" aria-label="Adjust photo">${ADJ_ICON}<span class="lbl">Adjust photo</span>${Object.keys(j.adjust || {}).length ? '<i class="adj-dot"></i>' : ''}</button>
-        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
-  }
-  const back = j.side === 'Back', hasBack = (j.sides || []).includes('Back');
-  return `<div class="flip ${back ? 'back' : ''}" data-act="zoom" data-key="${j.key}" title="Click to enlarge">
-      <span class="side-tag">${back ? 'Back' : 'Front'}</span>
-      <div class="in"><div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>
-      ${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}</div>
+  // a clean picture of the card: click = card window (preview, adjust photo, PAN front);
+  // the only thing on it: a small round button to turn the card (and a dot if it was adjusted)
+  const sheet = isSheet(j), s = curSide(j), back = !sheet && j.side === 'Back', hasBack = (j.sides || []).includes('Back');
+  const next = sheet ? j.sides[(j.sides.indexOf(s) + 1) % j.sides.length] : (back ? 'Front' : 'Back');
+  const turn = sheet ? j.sides.length > 1 : hasBack;
+  const edited = Object.keys(j.adjust || {}).length > 0;
+  return `<div class="flip ${back ? 'back' : ''} ${sheet ? 'sheet' : ''}" data-act="zoom" data-key="${j.key}" title="Open the card – preview, adjust photo${j.panFront ? ', PAN front' : ''}">
+      <span class="side-tag">${esc(sheet ? s : back ? 'Back' : 'Front')}${edited ? '<i class="ed-dot" title="Adjusted"></i>' : ''}</span>
+      <div class="in">${sheet ? `<div class="face f"><img src="${img(j, s)}" alt="${esc(s)}" loading="lazy"></div>`
+        : `<div class="face f"><img src="${img(j, 'Front')}" alt="Front" loading="lazy"></div>${hasBack ? `<div class="face b"><img src="${img(j, 'Back')}" alt="Back" loading="lazy"></div>` : ''}`}</div>
       ${back && j.hologram ? holoBar(j) : ''}
-      <div class="tools">${!back && j.panFront ? `<button class="ft" data-act="panfront" data-key="${j.key}" title="PAN front – gap under Name / Father's Name, signature size, position and ink" aria-label="PAN front settings">${PF_ICON}<span class="lbl">PAN front</span></button>` : ''}${hasBack ? `<button class="ft" data-act="flip" data-key="${j.key}" title="Show the ${back ? 'front' : 'back'}" aria-label="Show the ${back ? 'front' : 'back'}">${SVG.flip}<span class="lbl">${back ? 'Front' : 'Back'}</span></button>` : ''}
-        <button class="ft adj" data-act="adjust" data-key="${j.key}" title="Adjust photo – brightness, contrast, colour" aria-label="Adjust photo">${ADJ_ICON}<span class="lbl">Adjust photo</span>${Object.keys(j.adjust || {}).length ? '<i class="adj-dot"></i>' : ''}</button>
-        <button class="ft zoom" data-act="zoom" data-key="${j.key}" title="Enlarge">${SVG.zoom}</button></div></div>`;
+      ${turn ? `<button class="turn" data-act="flip" data-key="${j.key}" title="Show the ${esc(next.toLowerCase())}" aria-label="Show the ${esc(next.toLowerCase())}">${FLIP_ICON}</button>` : ''}
+    </div>`;
 }
 function actsHtml(j, grid) {
   if (j.state === 'done') return `
     <button class="btn ${grid ? '' : 'lg'}" data-act="save" data-key="${j.key}" title="Save front + back to the save folder">${SVG.save}<span class="lbl-s">Save</span></button>
     ${CPS.rowActions.filter(a => !a.panel && (!a.when || a.when(CPS.jobView(j)))).map(a => `<button class="btn ${grid ? '' : 'lg'}" data-act="plugin" data-pa="${esc(a.id)}" data-key="${j.key}" title="${esc(a.title || a.label)}">${a.icon || ''}<span class="lbl-s">${esc(a.label)}</span></button>`).join('')}
-    ${j.pdf ? `<button class="btn primary ${grid ? '' : 'lg'}" data-act="pdf" data-key="${j.key}" title="Download the print-quality PDF (all sheets)">${SVG.down}PDF</button>`
-            : `<button class="btn primary ${grid ? '' : 'lg'}" data-act="both" data-key="${j.key}" title="Download front + back JPEGs">${SVG.down}Download</button>`}
+    ${isPassport(j) || j.scan ? `<button class="btn ${grid ? '' : 'lg'}" data-act="${j.scan ? 'scanedit' : 'ppedit'}" data-key="${j.key}" title="${j.scan ? 'Edit the scan: corners, colours, back side, name' : 'Edit the photo, border or name'}">${EDIT_ICON}<span class="lbl-s">Edit</span></button>` : ''}
+    ${j.pdf ? `<button class="btn primary ${grid ? '' : 'lg'}" data-act="pdf" data-key="${j.key}" title="${isPassport(j) ? 'Download the 6 × 4 inch PDF' : 'Download the print-quality PDF (all sheets)'}">${SVG.down}PDF</button>`
+            : `${j.scan ? '' : `<button class="btn ${grid ? '' : 'lg'}" data-act="a4win" data-key="${j.key}" title="A4 page: front and back side by side, real size, rounded corners – save or print">${A4_ICON}<span class="lbl-s">A4</span></button>`}
+               <button class="btn primary ${grid ? '' : 'lg'}" data-act="both" data-key="${j.key}" title="Download front + back JPEGs">${SVG.down}Download</button>`}
     <button class="btn quiet icon ${grid ? '' : 'lg'}" data-act="more" data-key="${j.key}" aria-expanded="${!!j.open}" title="${j.open ? 'Close options (Esc)' : 'Rename files, single side, remove'}" aria-label="${j.open ? 'Close options' : 'More options'}">${j.open ? SVG.x : SVG.more}</button>`;
   if (needsAction(j)) return `<button class="btn quiet icon" data-act="remove" data-key="${j.key}" title="Remove">${SVG.x}</button>`;
   return `<span class="status"><span class="spin"></span>${j.state === 'working' ? 'Processing' : 'Queued'}</span>`;
@@ -1288,7 +1507,7 @@ function extraHtml(j) {
   if (j.state === 'done' && j.open) return `<div class="more">${moreHead(j, 'File names &amp; options')}${j.sides.map(s => `
       <div class="field"><label>${esc(s)} file name</label><div class="name"><input value="${esc(j.names[s])}" data-key="${j.key}" data-side="${esc(s)}" spellcheck="false" aria-label="${esc(s)} file name"><span>${esc(settings.extension || '.jpeg')}</span>
         <button class="btn quiet icon" data-act="dl" data-key="${j.key}" data-side="${esc(s)}" title="Download ${esc(s)} only">${SVG.down}</button></div></div>`).join('')}
-      <div class="acts">${adjustBtn(j)}${a4Btn(j)}<button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
+      <div class="acts">${j.scan ? `<button class="btn quiet" data-act="a4win" data-key="${j.key}" title="A4 page: front and back side by side, real size – save or print">${A4_ICON}A4 page</button>` : ''}${adjustBtn(j)}${a4Btn(j)}<button class="btn quiet" data-act="zip" data-key="${j.key}">${SVG.down}ZIP</button><button class="btn quiet" data-act="remove" data-key="${j.key}">${SVG.x}Remove</button></div></div>`;
   if (j.state === 'locked') return `<div class="note"><form class="lock" data-key="${j.key}"><strong style="color:var(--err)">${esc(j.error)}</strong>
       <input type="password" placeholder="PDF password" autocomplete="off" data-pw="${j.key}"><button class="btn primary" type="submit">Unlock</button>
       <span class="hint">e-Aadhaar: first 4 letters of the name in capitals + birth year (SUBR1992) &ensp; e-PAN: date of birth DDMMYYYY</span></form></div>`;
@@ -1386,14 +1605,7 @@ document.addEventListener('keydown', e => {
 /* ---------- adjust (photo / card brightness, contrast, colour, sharpness) ---------- */
 const ADJ_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>';
 const ADJ = [['brightness', 'Brightness', -60, 60], ['contrast', 'Contrast', -60, 60], ['saturation', 'Colour', -100, 100], ['sharpness', 'Sharpness', 0, 100]];
-const adjustBtn = j => `<button class="btn quiet" data-act="adjust" data-key="${j.key}">${ADJ_ICON}${j.pdf ? 'Adjust photo' : 'Adjust photo / colours'}</button>`;
-const adjOv = document.createElement('div');
-adjOv.className = 'overlay';
-adjOv.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="adjTitle" style="width:min(860px,100%)">
-  <div class="dhead"><h3 id="adjTitle">Adjust card</h3><button class="btn quiet icon" data-close aria-label="Close">${SVG.x}</button></div>
-  <div class="dbody" id="adjBody"></div><div class="dfoot" id="adjFoot"></div></div>`;
-document.body.appendChild(adjOv);
-adjOv.addEventListener('click', e => { if (e.target === adjOv || e.target.closest('[data-close]')) adjOv.classList.remove('open'); });
+const adjustBtn = j => isPassport(j) ? '' : `<button class="btn quiet" data-act="adjust" data-key="${j.key}">${ADJ_ICON}${j.pdf ? 'Adjust photo' : 'Adjust photo / colours'}</button>`;
 let aj = null;                                   // {j, side, scope, box, p}
 function openAdjust(j, side) {
   side = side || curSide(j);
@@ -1402,7 +1614,7 @@ function openAdjust(j, side) {
   // laminated Aadhaar (vector PDF): always the face only, found by the server on every sheet
   aj = {j, side, box, scope: j.pdf ? 'photo' : saved.box === null && saved.brightness !== undefined ? 'card' : (box ? 'photo' : 'card'),
         p: Object.fromEntries(ADJ.map(([k]) => [k, +saved[k] || 0]))};
-  adjOv.classList.add('open'); drawAdjust();
+  cwOpen(j, 'adjust'); drawAdjust();
 }
 let adjTimer = null;
 const adjUrl = () => `/api/adjust/${aj.j.job}/${encodeURIComponent(aj.side)}?` + new URLSearchParams({...aj.p,
@@ -1455,7 +1667,7 @@ function drawAdjust() {
   $('#adjSave').onclick = async () => {
     if (aj.scope === 'photo' && !aj.box && !j.pdf) { toast('Drag on the card to mark the photo, or choose Whole card', {error: true}); return; }
     const b = $('#adjSave'); b.disabled = true; b.textContent = 'Saving…';
-    try { done(await api(`/api/adjust/${j.job}`, {side, ...aj.p, box: aj.scope === 'photo' ? aj.box : null}), j.pdf ? 'Face adjusted on every sheet' : `${side} adjusted`); adjOv.classList.remove('open'); }
+    try { done(await api(`/api/adjust/${j.job}`, {side, ...aj.p, box: aj.scope === 'photo' ? aj.box : null}), j.pdf ? 'Face adjusted on every sheet' : `${side} adjusted`); cwTab('preview', side); }
     catch (e) { toast(e.message, {error: true}); b.disabled = false; b.textContent = 'Save'; }
   };
   if ($('#adjReset')) $('#adjReset').onclick = async () => {
@@ -1463,7 +1675,7 @@ function drawAdjust() {
     catch (e) { toast(e.message, {error: true}); }
   };
 }
-addEventListener('resize', () => { if (adjOv.classList.contains('open')) placeBox(); });
+addEventListener('resize', () => { if (cwIs('adjust')) placeBox(); });
 
 /* ---------- PAN front: gap under the Name / Father's Name labels, signature in its box ---------- */
 const PF_ICON = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h6M7 14h4M14 15c1.5-2 2.5-2 3.5 0"/></svg>';
@@ -1475,18 +1687,11 @@ const PF_GROUPS = [
                  ['sign_strength', 'Ink strength', 50, 600, '%'], ['sign_contrast', 'Contrast', -50, 100, ''], ['sign_dark', 'Darkness', 0, 100, '']]],
 ];
 const PF_COLORS = [['original', 'Original'], ['black', 'Black'], ['blue', 'Blue']];
-const pfOv = document.createElement('div');
-pfOv.className = 'overlay';
-pfOv.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pfTitle" style="width:min(940px,100%)">
-  <div class="dhead"><h3 id="pfTitle">PAN front</h3><button class="btn quiet icon" data-close aria-label="Close">${SVG.x}</button></div>
-  <div class="dbody" id="pfBody"></div><div class="dfoot" id="pfFoot"></div></div>`;
-document.body.appendChild(pfOv);
-pfOv.addEventListener('click', e => { if (e.target === pfOv || e.target.closest('[data-close]')) pfOv.classList.remove('open'); });
 let pf = null, pfTimer = null;                    // {j, p}
 const pfUrl = () => `/api/panfront/${pf.j.job}?` + new URLSearchParams({...pf.p, t: Date.now()});
 const pfPreview = (wait = 140) => { clearTimeout(pfTimer); pfTimer = setTimeout(() => { const im = $('#pfImg'); if (im) im.src = pfUrl(); }, wait); };
 const pfVal = (k, u) => (['sign_x', 'sign_y', 'name_gap', 'father_gap'].includes(k) && pf.p[k] > 0 ? '+' : '') + pf.p[k] + u;
-function openPanFront(j) { pf = {j, p: {...PF_DEF, ...(j.panFront.params || {})}}; pfOv.classList.add('open'); drawPanFront(); }
+function openPanFront(j) { pf = {j, p: {...PF_DEF, ...(j.panFront.params || {})}}; cwOpen(j, 'panfront'); drawPanFront(); }
 function placePfBox() {
   const el = $('#pfBox'), im = $('#pfImg'), b = pf.j.panFront.box; if (!el || !im) return;
   el.hidden = !b || !$('#pfShowBox').checked; if (el.hidden) return;
@@ -1520,30 +1725,75 @@ function drawPanFront() {
       const r = await api(`/api/panfront/${j.job}`, {...pf.p, as_default: $('#pfAsDefault').checked});
       Object.assign(j, {panFront: r.pan_front, adjust: r.adjust || {}, v: r.v, saved: false, side: 'Front'});
       if (r.default) settings.pan_front = r.default;
-      pfOv.classList.remove('open'); render(); toast($('#pfAsDefault').checked ? 'PAN front saved – new PAN cards use it too' : 'PAN front saved');
+      render(); cwTab('preview', 'Front'); toast($('#pfAsDefault').checked ? 'PAN front saved – new PAN cards use it too' : 'PAN front saved');
     } catch (e) { toast(e.message, {error: true}); b.disabled = false; b.textContent = 'Save'; }
   };
 }
-addEventListener('resize', () => { if (pfOv.classList.contains('open')) placePfBox(); });
+addEventListener('resize', () => { if (cwIs('panfront')) placePfBox(); });
+
+/* ---------- A4: front + back side by side at real size, rounded corners - save as PDF or print ---------- */
+const a4Ov = document.createElement('div');
+a4Ov.className = 'overlay';
+a4Ov.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="a4Title" style="width:min(460px,100%)">
+  <div class="dhead"><h3 id="a4Title">A4 page</h3><button class="btn quiet icon" data-close aria-label="Close">${SVG.x}</button></div>
+  <div class="dbody"><div class="a4-prev"><img id="a4Img" alt="A4 page preview"></div>
+    <p class="hint" style="margin:0">Front and back side by side at real PVC size (85.6 &times; 54 mm) with rounded corners and a thin cutting line. Print at <b>100 % / actual size</b>.</p></div>
+  <div class="dfoot"><span style="flex:1"></span><button class="btn" id="a4Save">${SVG.down}Save PDF</button><button class="btn primary" id="a4Print">${A4_ICON}Print on A4</button></div></div>`;
+document.body.appendChild(a4Ov);
+a4Ov.addEventListener('click', e => { if (e.target === a4Ov || e.target.closest('[data-close]')) a4Ov.classList.remove('open'); });
+let a4Job = null;
+function openA4(j) {
+  a4Job = j;
+  $('#a4Title').textContent = `A4 page · ${j.details?.name || j.source}`;
+  $('#a4Img').src = `/api/a4/preview?job=${j.job}&v=${j.v || 0}&t=${Date.now()}`;
+  const pa = CPS.rowActions.find(a => a.id === 'pvca4');
+  $('#a4Print').disabled = !pa;
+  $('#a4Print').title = pa ? 'Print on the A4 office printer' : 'Turn on the "A4 office printing" plugin in Settings to print from here';
+  a4Ov.classList.add('open');
+}
+$('#a4Save').onclick = () => { if (a4Job) downloadA4(a4Job); };
+$('#a4Print').onclick = () => { const pa = CPS.rowActions.find(a => a.id === 'pvca4'); if (!pa || !a4Job) return;
+  a4Ov.classList.remove('open'); try { pa.run(CPS.jobView(a4Job)); } catch (err) { toast(err.message, {error: true}); } };
 
 /* ---------- events ---------- */
 const byKey = k => jobs.find(j => j.key === k);
-let lbJob = null;
-function openLightbox(j, side) {
+/* card window: one window per card with tabs - Preview, Adjust photo, PAN front (PAN cards) */
+let lbJob = null, cwCur = 'preview';
+const cwIs = t => $('#lightbox').classList.contains('open') && cwCur === t;
+const lbSide = () => $('#lbImg').dataset.side || curSide(lbJob);
+function cwSetup(j) {
   lbJob = j;
+  $('#lbTitle').textContent = `${j.details?.name || j.source}${j.ref ? ' · ' + j.ref : ''}`;
   $('#lbSides').innerHTML = j.sides.map(s => `<button data-s="${esc(s)}">${esc(s)}</button>`).join('');
-  document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s)); $('#lbTitle').textContent = `${j.details?.name || j.source}${j.ref ? ' · ' + j.ref : ''}`;
-  showLb(side || curSide(j)); $('#lightbox').classList.add('open');
+  document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
 }
-$('#lbAdj').onclick = () => { $('#lightbox').classList.remove('open'); openAdjust(lbJob, $('#lbImg').dataset.side); };
-function showLb(s) { $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
-  document.querySelectorAll('#lbSides button').forEach(b => { b.setAttribute('aria-pressed', b.dataset.s === s); b.hidden = !lbJob.sides.includes(b.dataset.s); });
-  const pfj = lbJob.panFront, pfb = $('#lbPf');          // PAN front: its own editor, like Adjust photo
-  pfb.hidden = !(pfj && s === pfj.side);
-  if (!pfb.hidden) pfb.innerHTML = PF_ICON + 'PAN front'; }
-$('#lbPf').onclick = () => { $('#lightbox').classList.remove('open'); openPanFront(lbJob); };
-document.querySelectorAll('#lbSides button').forEach(b => b.onclick = () => showLb(b.dataset.s));
-$('#lbDl').onclick = () => downloadOne(lbJob, $('#lbImg').dataset.side);
+function cwOpen(j, tab) {                     // show a tab (the editors call this when they open)
+  if (lbJob !== j || !$('#lightbox').classList.contains('open')) cwSetup(j);
+  cwCur = tab;
+  document.querySelectorAll('#lightbox .cw-panel').forEach(pn => pn.hidden = pn.dataset.panel !== tab);
+  document.querySelectorAll('#cwTabs [data-tab]').forEach(b => {
+    b.setAttribute('aria-selected', b.dataset.tab === tab);
+    b.hidden = (b.dataset.tab === 'panfront' && !j.panFront) || (b.dataset.tab === 'adjust' && isPassport(j));
+    if (b.dataset.tab === 'adjust') b.textContent = j.pdf ? 'Adjust photo' : 'Adjust photo / colours';
+  });
+  $('#lightbox').classList.add('open');
+}
+function cwTab(tab, side) {                   // what a tab click does
+  if (!lbJob) return;
+  if (tab === 'adjust') openAdjust(lbJob, side || lbSide());
+  else if (tab === 'panfront') openPanFront(lbJob);
+  else { cwOpen(lbJob, 'preview'); showLb(side || lbSide()); }
+}
+function openLightbox(j, side) { cwSetup(j); cwOpen(j, 'preview'); showLb(side || curSide(j)); }
+function showLb(s) {
+  $('#lbImg').src = img(lbJob, s); $('#lbImg').alt = s; $('#lbImg').dataset.side = s;
+  document.querySelectorAll('#lbSides button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === s));
+}
+$('#cwTabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) cwTab(b.dataset.tab); });
+// "Cancel" inside an editor tab goes back to the preview instead of closing the window
+document.querySelectorAll('#lightbox .cw-panel[data-panel="adjust"], #lightbox .cw-panel[data-panel="panfront"]').forEach(pn =>
+  pn.addEventListener('click', e => { if (e.target.closest('[data-close]')) { e.stopPropagation(); cwTab('preview', pn.dataset.panel === 'panfront' ? 'Front' : undefined); } }));
+$('#lbDl').onclick = () => downloadOne(lbJob, lbSide());
 
 $('#results').addEventListener('submit', e => {
   const f = e.target.closest('form.lock'); if (!f) return; e.preventDefault();
@@ -1578,11 +1828,15 @@ $('#results').addEventListener('click', async e => {
   }
   else if (act === 'zoom') openLightbox(j);
   else if (act === 'both') downloadBoth(j);
+  else if (act === 'scanedit') openTool('Card scan', '/scan?embed=1&job=' + encodeURIComponent(j.job));
+  else if (act === 'ppedit') openTool('Passport photos', '/passport?embed=1&job=' + encodeURIComponent(j.job));
+  else if (act === 'pprint') { window.open(`/api/pdf/${j.job}?inline=1&name=${encodeURIComponent(baseName(j))}`, '_blank'); toast('Print on 6 × 4 inch photo paper at 100% / Actual size'); }
   else if (act === 'pdf') { const a = document.createElement('a'); a.href = `/api/pdf/${j.job}?name=${encodeURIComponent(baseName(j))}`; document.body.appendChild(a); a.click(); a.remove(); }
   else if (act === 'save') saveItems(itemsOf(j));
   else if (act === 'dl') downloadOne(j, b.dataset.side);
   else if (act === 'zip') downloadZip(itemsOf(j), baseName(j));
   else if (act === 'a4') downloadA4(j);
+  else if (act === 'a4win') openA4(j);
   else if (act === 'more') {
     const open = !j.open;
     jobs.forEach(o => { o.open = false; });                 // only one options panel open at a time
@@ -1616,7 +1870,7 @@ $('#results').addEventListener('click', async e => {
 });
 
 render();
-loadSettings().then(render).then(loadHistory).then(loadPlugins).then(route).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
+loadSettings().then(render).then(loadHistory).then(passportAdded).then(loadPlugins).then(route).catch(e => toast('Could not reach the app: ' + e.message, {error: true}));
 </script>
 </body>
 </html>

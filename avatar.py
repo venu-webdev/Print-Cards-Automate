@@ -70,13 +70,14 @@ def _square_face(img):
 def photo_box(doc, card_type, card_image):
     """Where the holder's photo sits on a finished card image -> [x0, y0, x1, y1] (px) or None.
     Used by the "Adjust" editor so brightness / contrast can be changed on the photo only.
-    The PDF's own photo is searched on the card at many sizes (normalised correlation, so the
-    shop's colour curves on the photo don't matter)."""
+    1) Exact: the card maker stored where it put the photo (card_image.info["cps_photo_box"]):
+       Aadhaar PVC, PAN, DL, ABHA, Ayushman (that one + 4 px on purpose), Voter ID.
+    2) Only if a maker could not tell: the PDF's own photo is searched on the card."""
     import cv2
     if card_type in ("rc", "aadhaar_lam") or card_image is None:
         return None
-    if card_type == "pmjay" and card_image.info.get("cps_photo_box"):
-        return list(card_image.info["cps_photo_box"])         # placed by pmjay_card itself: exact (+ a few px)
+    if card_image.info.get("cps_photo_box"):
+        return [int(v) for v in card_image.info["cps_photo_box"]]
     card = np.asarray(card_image.convert("L"))
     H, W = card.shape
     if card_type == "voter":
@@ -96,24 +97,42 @@ def photo_box(doc, card_type, card_image):
         photo = None
     if photo is None:
         return None
-    f = 0.5                                                   # search at half size (fast)
-    g = cv2.resize(card, (round(W * f), round(H * f)), interpolation=cv2.INTER_AREA)
     t0 = np.asarray(photo.convert("L"))
+    # 1) rough: half size, photo height as part of the card height, and a little narrower / wider than
+    #    the stored picture (PDFs often draw the photo slightly squeezed, e.g. PAN: square picture shown
+    #    184 x 192 px - keeping the picture's own shape made the area ~8 px too wide)
+    f = 0.5
+    g = cv2.resize(card, (round(W * f), round(H * f)), interpolation=cv2.INTER_AREA)
     best = None
-    for frac in np.linspace(0.18, 0.8, 32):                   # photo height as part of the card height
-        th = round(g.shape[0] * frac)
-        tw = round(th * t0.shape[1] / t0.shape[0])
-        if th < 12 or tw >= g.shape[1] or th >= g.shape[0]:
-            continue
-        t = cv2.resize(t0, (tw, th), interpolation=cv2.INTER_AREA)
-        res = cv2.matchTemplate(g, t, cv2.TM_CCOEFF_NORMED)
-        _, mx, _, loc = cv2.minMaxLoc(res)
-        if best is None or mx > best[0]:
-            best = (mx, loc, tw, th)
+    for frac in np.linspace(0.18, 0.8, 32):
+        for asp in (0.88, 0.94, 1.0, 1.06):
+            th = round(g.shape[0] * frac)
+            tw = round(th * t0.shape[1] / t0.shape[0] * asp)
+            if th < 12 or tw < 12 or tw >= g.shape[1] or th >= g.shape[0]:
+                continue
+            res = cv2.matchTemplate(g, cv2.resize(t0, (tw, th), interpolation=cv2.INTER_AREA), cv2.TM_CCOEFF_NORMED)
+            _, mx, _, loc = cv2.minMaxLoc(res)
+            if best is None or mx > best[0]:
+                best = (mx, loc[0] / f, loc[1] / f, tw / f, th / f)
     if best is None or best[0] < 0.5:
         return None
-    _, (x, y), tw, th = best
-    return [round(x / f), round(y / f), round((x + tw) / f), round((y + th) / f)]
+    # 2) exact: full size, width and height tuned separately around the rough answer
+    _, x, y, w, h = best
+    m = 14
+    x0, y0 = max(0, int(x) - m), max(0, int(y) - m)
+    win = card[y0:min(H, int(y + h) + m), x0:min(W, int(x + w) + m)]
+    fine = None
+    for dh in range(-8, 9, 2):
+        for dw in range(-12, 13, 2):
+            tw, th = round(w) + dw, round(h) + dh
+            if tw < 12 or th < 12 or tw > win.shape[1] or th > win.shape[0]:
+                continue
+            res = cv2.matchTemplate(win, cv2.resize(t0, (tw, th), interpolation=cv2.INTER_AREA), cv2.TM_CCOEFF_NORMED)
+            _, mx, _, loc = cv2.minMaxLoc(res)
+            if fine is None or mx > fine[0]:
+                fine = (mx, x0 + loc[0], y0 + loc[1], tw, th)
+    _, x, y, w, h = fine if fine and fine[0] >= best[0] - 0.02 else (0, round(x), round(y), round(w), round(h))
+    return [int(x), int(y), int(x + w), int(y + h)]
 
 
 def holder_photo(doc, card_type, front_image=None):

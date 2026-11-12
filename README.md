@@ -55,6 +55,15 @@ default for all PCs, edit `shop_settings.json`, then commit and push it.
   sharpness; photo only or whole card; Reset brings the original back).
 - Other PCs in the shop: Settings → Network sharing (PIN + restart + `Allow Network Access.bat`),
   then open `http://<this PC's address>:5000` on the other PC.
+- **Passport photos** tile: adjust one photo on a 35 × 45 mm frame, then 8 of them on a
+  6 × 4 inch sheet (border colour / width, cut line) → *Add to exports*. **Edit** in the list opens it again.
+  **Print** on the entry sends the sheet straight to a 4 × 6 photo printer (plugin *Photo printer · 4×6*);
+  set that printer's **Glossy Photo Paper / Borderless / quality** once in its Windows preferences — the app
+  keeps them and just picks the 4 × 6 (10 × 15 cm) size.
+- **Card scan** tile (`/scan`): a phone photo or flatbed scan of the customer's own card (front, back optional).
+  The card is found and straightened automatically to 85.6 × 54 mm; drag the 4 corners to fine-tune,
+  ↻ if upside down, trim edges, colours → *Add to exports* (prints like any PVC card). *Edit scan* is in
+  the card's ⋯ options. Nothing on the card is changed - it is only copied.
 
 ## Updating
 

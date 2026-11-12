@@ -291,7 +291,7 @@
   }
 
   CPS.registerRowAction({id: 'a4print', label: 'Print', title: 'Print A4 sheets (office printer)', icon: ICON,
-    run: j => { $id('opTitle').textContent = 'Print A4 sheets'; open(j); }, when: j => j.pdf});
+    run: j => { $id('opTitle').textContent = 'Print A4 sheets'; open(j); }, when: j => j.pdf && j.type !== 'passport'});
   // panel: shown in the card's ⋯ options next to "A4 PDF" (the row itself is already full for PVC cards)
   CPS.registerRowAction({id: 'pvca4', label: 'Print A4', title: 'Print on A4: front and back side by side at real size (office printer)',
     icon: ICON, run: openPvc, when: j => !j.pdf, panel: true});
@@ -304,8 +304,9 @@
   // selection bar: tick laminated cards -> print all their sheets in one go
   if (CPS.registerBulkAction) CPS.registerBulkAction({id: 'a4', label: 'Print A4', icon: ICON, primary: true,
     title: 'Print the A4 sheets of the selected laminated cards (office printer)',
-    when: list => list.some(x => x.pdf),
-    blocked: list => list.every(x => x.pdf) ? '' : 'PVC cards print on the Epson – untick them to print the A4 sheets',
+    when: list => list.some(x => x.pdf && x.type !== 'passport'),
+    blocked: list => list.some(x => x.type === 'passport') ? 'Passport photo sheets print with their own Print button – untick them'
+                   : list.every(x => x.pdf) ? '' : 'PVC cards print on the Epson – untick them to print the A4 sheets',
     run: list => { $id('opTitle').textContent = 'Print A4 sheets'; open(list); }});
 
   CPS.registerSettingsPanel('office_print', async el => {

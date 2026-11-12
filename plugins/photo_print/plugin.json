@@ -1,0 +1,9 @@
+{
+  "id": "photo_print",
+  "name": "Photo printing (4x6)",
+  "description": "Print the passport-photo sheet straight onto 4x6 / 10x15cm glossy photo paper on a photo printer (e.g. Canon G2010). Glossy paper type, borderless and quality come from that printer's own default settings.",
+  "version": "1.0.0",
+  "entry": "plugin.py",
+  "ui": "ui.js",
+  "enabled_by_default": true
+}

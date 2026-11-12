@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card scan – Card Print Studio</title>
+<script>
+  try { const t = localStorage.getItem('cps-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
+<link rel="stylesheet" href="/assets/tools.css">
+<style>
+/* Card scan only (the layout is shared: /assets/tools.css) */
+.result { position: relative; height: 0; padding-bottom: 62.8%; border-radius: 3.7% / 5.9%; overflow: hidden; background: var(--surface-3); box-shadow: var(--shadow-2); }  /* 638 / 1016 */
+.result img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; transition: opacity .15s; }
+.result.loading img { opacity: .55; }
+.result .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; }
+.rlabel { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--muted); margin-bottom: -6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="/" title="Back to Card Print Studio">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/></svg></span>
+      Card Print Studio <span class="plan">Pro</span> <span class="crumb">/ <b id="toolName">Card scan</b><span id="toolCrumb"></span></span>
+    </a>
+    <div class="switch" id="sideSw" role="group" aria-label="Card side">
+      <button type="button" data-side="Front" aria-pressed="true"><i class="n" id="nFront">1</i>Front</button>
+      <button type="button" data-side="Back" aria-pressed="false"><i class="n" id="nBack">2</i>Back <small>optional</small></button>
+    </div>
+    <div class="end">
+      <button class="btn quiet icon" id="themeBtn" aria-label="Switch light or dark mode"><svg class="i" id="themeIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"></svg></button>
+      <a class="btn" href="/"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back to cards</a>
+    </div>
+  </header>
+
+  <main class="tmain">
+    <div class="work">
+      <div class="stage" id="stage" tabindex="0" aria-label="Photo of the card: drag the 4 corner handles onto the card's corners">
+        <canvas id="view"></canvas>
+        <div class="empty" id="empty">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="6.5" y="8" width="11" height="8" rx="1.2"/></svg>
+          <b id="emptyTitle">Choose a photo or scan of the card&rsquo;s front</b>
+          <span>or drop a JPG / PNG anywhere on this page</span>
+          <span class="tips">Best results: the whole card in the photo, on a plain table that is darker or lighter than the card, taken from straight above, no flash glare. A flatbed scan works too.</span>
+        </div>
+        <div class="busy" id="busy" hidden><span><span class="spin"></span><span id="busyText">Finding the card…</span></span></div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="rlabel"><span>Result &ndash; 85.6 &times; 54 mm</span><span id="foundNote"></span></div>
+      <div class="result" id="result"><img id="out" alt="" hidden><div class="ph" id="outPh">The straight card shows here</div></div>
+      <div class="tools">
+        <button class="btn" id="pick" type="button"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 7"/></svg><span id="pickLbl">Choose photo</span></button>
+        <button class="btn icon" id="turn" type="button" title="Turn 180° (the card is upside down)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></button>
+        <button class="btn quiet" id="dropBack" type="button" hidden>Remove back</button>
+      </div>
+      <div class="grp"><div class="gh">Fit</div>
+        <div class="tools"><button class="btn" id="redetect" type="button" title="Find the card's corners automatically again">Find card again</button></div>
+        <label class="adj-row"><span>Trim edges</span><input type="range" id="trim" min="0" max="20" step="1" value="2"><output id="trimV">2 px</output></label>
+      </div>
+      <div class="grp"><div class="gh">Colours</div>
+        <label class="chk"><input type="checkbox" id="auto" checked> Auto colour (fix yellow / blue tint, grey photo)</label>
+        <label class="adj-row"><span>Brightness</span><input type="range" id="br" min="-50" max="50" step="1" value="0"><output id="brV">0</output></label>
+        <label class="adj-row"><span>Contrast</span><input type="range" id="ct" min="-50" max="50" step="1" value="0"><output id="ctV">0</output></label>
+        <label class="adj-row"><span>Colour</span><input type="range" id="sat" min="-100" max="100" step="1" value="0"><output id="satV">0</output></label>
+        <label class="adj-row"><span>Sharpen</span><input type="range" id="sharp" min="0" max="100" step="1" value="25"><output id="sharpV">25</output></label>
+        <button class="btn quiet left" id="resetCol" type="button">Reset colours</button>
+      </div>
+      <div class="grp"><div class="gh">Customer</div>
+        <label class="fld">Card type<select class="text" id="ctype"></select></label>
+        <label class="fld">Name <span class="hint">optional &ndash; shown in the exports list, used for the file names</span><input class="text" id="name" maxlength="60" autocomplete="off" placeholder="e.g. Ravi Kumar"></label>
+      </div>
+      <p class="hint">Drag the <b>4 round handles</b> onto the card&rsquo;s corners (a magnifier shows while dragging; arrow keys nudge the one under the mouse). <b>TOP</b> marks the edge that ends up on top &ndash; &#8635; if the card comes out upside down. Rounded corners: put the handle where the two edges would meet. <b>Alt + scroll</b> zooms the view, <b>Space + drag</b> moves it, Ctrl 0 fits.</p>
+    </aside>
+  </main>
+
+  <footer class="foot"><span class="hint" id="footHint">Front first; the back is optional.</span><div class="grow"></div>
+    <button class="btn primary lg" id="add">Add to exports <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></footer>
+</div>
+<input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp" hidden>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/assets/tools.js"></script>
+<script>
+/* ---------- card scan: photo / scan of the customer's own card -> straight PVC card ---------- */
+const TYPES = [['scan', 'Other / any card'], ['aadhaar', 'Aadhaar PVC'], ['pan', 'PAN Card'], ['voter', 'Voter ID'], ['dl', 'Driving Licence'],
+               ['rc', 'Vehicle RC'], ['abha', 'ABHA Card'], ['pmjay', 'Ayushman Card'], ['ration', 'Ration Card']];
+const COLOURS = {auto: true, br: 0, ct: 0, sat: 0, sharp: 25};
+const sides = {Front: null, Back: null};              // {id, w, h, corners, found, img, rot, trim, auto, br, ct, sat, sharp}
+let cur = 'Front', editing = null;
+const S = () => sides[cur];
+
+// ---- the photo with the 4 corners
+const stage = $('#stage'), cv = $('#view');
+const view = {D: 1, ox: 0, oy: 0, w: 0, h: 0};
+const VZ = viewZoom({stage, canvas: cv, redraw: () => draw(), active: () => !!S()});
+const toScreen = ([x, y]) => [view.ox + x * view.D, view.oy + y * view.D];
+const toImage = (X, Y) => [(X - view.ox) / view.D, (Y - view.oy) / view.D];
+let drag = null, hover = -1;
+function draw() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (!r.width) return;
+  if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#2b2c31'; ctx.fillRect(0, 0, r.width, r.height);
+  const s = S();
+  $('#empty').hidden = !!s; VZ.show(!!s);
+  if (!s || !s.img) return;
+  const m = 34;
+  const L = VZ.layout(Math.min((r.width - 2 * m) / s.w, (r.height - 2 * m) / s.h), s.w, s.h, r.width, r.height);
+  Object.assign(view, {w: r.width, h: r.height, D: L.D, ox: L.ox, oy: L.oy});
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(s.img, view.ox, view.oy, s.w * view.D, s.h * view.D);
+  const P = s.corners.map(toScreen);
+  // dim everything outside the card
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, r.width, r.height);
+  ctx.moveTo(...P[0]); P.slice(1).forEach(p => ctx.lineTo(...p)); ctx.closePath();
+  ctx.fillStyle = 'rgba(10,10,14,.55)'; ctx.fill('evenodd'); ctx.restore();
+  ctx.strokeStyle = '#4ea1ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(...P[0]); P.slice(1).forEach(p => ctx.lineTo(...p)); ctx.closePath(); ctx.stroke();
+  // which edge ends up on top
+  const [a, b] = s.rot === 180 ? [P[2], P[3]] : [P[0], P[1]], c = P.reduce((q, p) => [q[0] + p[0] / 4, q[1] + p[1] / 4], [0, 0]);
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], dx = mid[0] - c[0], dy = mid[1] - c[1], dl = Math.hypot(dx, dy) || 1;
+  const tp = [mid[0] + dx / dl * 16, mid[1] + dy / dl * 16];
+  ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText('TOP').width + 12;
+  ctx.fillStyle = '#4ea1ff'; ctx.beginPath(); ctx.roundRect(tp[0] - tw / 2, tp[1] - 9, tw, 18, 9); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillText('TOP', tp[0], tp[1] + .5);
+  ctx.strokeStyle = '#4ea1ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+  // handles
+  P.forEach(([x, y], i) => {
+    ctx.beginPath(); ctx.arc(x, y, i === hover || (drag && drag.i === i) ? 11 : 9, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 2, 0, 2 * Math.PI); ctx.fillStyle = '#4ea1ff'; ctx.fill();
+  });
+  if (drag) loupe(ctx, s, drag.i, P);
+}
+function loupe(ctx, s, i, P) {                 // magnifier while dragging a corner
+  const R = 74, Z = Math.max(4 * view.D, 0.8);      // screen px per photo px inside the loupe
+  const [x, y] = s.corners[i];
+  const cx = P[i][0] < view.w / 2 ? view.w - R - 16 : R + 16, cy = R + 16;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.clip();
+  ctx.fillStyle = '#111'; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+  const k = s.img.width / s.w, half = R / Z;         // preview px per photo px
+  ctx.imageSmoothingEnabled = Z / k < 3;
+  ctx.drawImage(s.img, (x - half) * k, (y - half) * k, 2 * half * k, 2 * half * k, cx - R, cy - R, 2 * R, 2 * R);
+  ctx.strokeStyle = '#4ea1ff'; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (const j of [(i + 3) % 4, (i + 1) % 4]) { const [qx, qy] = s.corners[j]; ctx.moveTo(cx, cy); ctx.lineTo(cx + (qx - x) * Z, cy + (qy - y) * Z); }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10); ctx.stroke();
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+}
+const at = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const nearest = P => { const s = S(); if (!s) return -1; let best = -1, bd = 22;
+  s.corners.map(toScreen).forEach(([x, y], i) => { const d = Math.hypot(P[0] - x, P[1] - y); if (d < bd) { bd = d; best = i; } }); return best; };
+cv.addEventListener('pointerdown', e => {
+  const s = S(); if (!s) return;
+  const P = at(e), i = nearest(P);
+  if (i < 0) return;
+  const [ix, iy] = toImage(...P);
+  drag = {i, dx: s.corners[i][0] - ix, dy: s.corners[i][1] - iy};
+  cv.setPointerCapture(e.pointerId); stage.focus(); e.preventDefault(); draw();
+});
+cv.addEventListener('pointermove', e => {
+  const s = S(); if (!s) return;
+  const P = at(e);
+  if (!drag) { const h = nearest(P); cv.style.cursor = h >= 0 ? 'grab' : ''; if (h !== hover) { hover = h; draw(); } return; }
+  const [ix, iy] = toImage(...P);
+  s.corners[drag.i] = [Math.max(-s.w * .2, Math.min(s.w * 1.2, ix + drag.dx)), Math.max(-s.h * .2, Math.min(s.h * 1.2, iy + drag.dy))];
+  cv.style.cursor = 'grabbing'; draw();
+});
+const end = () => { if (!drag) return; drag = null; cv.style.cursor = hover >= 0 ? 'grab' : ''; draw(); preview(); };
+cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+stage.addEventListener('keydown', e => {             // arrow keys nudge the corner under the mouse
+  const s = S(); if (!s || hover < 0) return;
+  const d = (e.shiftKey ? 10 : 1) / view.D, mv = {ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d]}[e.key];
+  if (!mv) return; e.preventDefault();
+  s.corners[hover] = [s.corners[hover][0] + mv[0], s.corners[hover][1] + mv[1]]; draw(); preview();
+});
+new ResizeObserver(draw).observe(stage);
+
+// ---- the straight result (made on the server, exactly like the final card)
+let pvTimer = 0, pvCtl = null, pvUrl = '';
+const sideBody = s => ({id: s.id, corners: s.corners, rot: s.rot, trim: s.trim, auto: s.auto, br: s.br, ct: s.ct, sat: s.sat, sharp: s.sharp});
+function preview(now) {
+  clearTimeout(pvTimer);
+  pvTimer = setTimeout(async () => {
+    const s = S(); if (!s) return;
+    pvCtl?.abort(); pvCtl = new AbortController();
+    $('#result').classList.add('loading');
+    try {
+      const r = await fetch('/api/scan/preview/' + s.id, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(sideBody(s)), signal: pvCtl.signal});
+      if (!r.ok) throw new Error('Preview failed (' + r.status + ')');
+      const url = URL.createObjectURL(await r.blob());
+      if (pvUrl) URL.revokeObjectURL(pvUrl); pvUrl = url;
+      $('#out').src = url; $('#out').hidden = false; $('#outPh').hidden = true;
+    } catch (e) { if (e.name !== 'AbortError') toast(e.message, {error: true}); }
+    $('#result').classList.remove('loading');
+  }, now ? 0 : 180);
+}
+
+// ---- controls
+const ctrls = [['trim', v => v + ' px', 2], ['br', String, 0], ['ct', String, 0], ['sat', String, 0], ['sharp', String, 25]];
+function syncControls() {
+  const s = S();
+  for (const [k, f, d] of ctrls) { const v = s ? s[k] : d; $('#' + k).value = v; $('#' + k + 'V').textContent = f(v); $('#' + k).disabled = !s; }
+  $('#auto').checked = s ? s.auto : true; $('#auto').disabled = !s;
+  ['#redetect', '#turn', '#resetCol'].forEach(q => $(q).disabled = !s);
+  $('#pickLbl').textContent = s ? 'Another photo' : 'Choose photo';
+  $('#dropBack').hidden = !(cur === 'Back' && s);
+  $('#foundNote').textContent = s ? (s.found ? 'card found automatically' : 'drag the corners onto the card') : '';
+  $('#emptyTitle').innerHTML = cur === 'Front' ? 'Choose a photo or scan of the card&rsquo;s front' : 'Back of the card (optional) &ndash; choose its photo or scan';
+  document.querySelectorAll('#sideSw [data-side]').forEach(b => b.setAttribute('aria-pressed', b.dataset.side === cur));
+  for (const k of ['Front', 'Back']) { const n = $('#n' + k); n.classList.toggle('done', !!sides[k]); n.textContent = sides[k] ? '✓' : (k === 'Front' ? '1' : '2'); }
+  $('#add').disabled = !sides.Front;
+  if (!s) { $('#out').hidden = true; $('#outPh').hidden = false; }
+}
+for (const [k] of ctrls) $('#' + k).oninput = e => { const s = S(); if (!s) return; s[k] = +e.target.value; syncControls(); preview(); };
+$('#auto').onchange = e => { const s = S(); if (s) { s.auto = e.target.checked; preview(); } };
+$('#resetCol').onclick = () => { const s = S(); if (s) { Object.assign(s, COLOURS); syncControls(); preview(true); } };
+$('#turn').onclick = () => { const s = S(); if (s) { s.rot = s.rot === 180 ? 0 : 180; draw(); preview(true); } };
+$('#redetect').onclick = async () => { const s = S(); if (!s) return;
+  busy('Finding the card…');
+  try { const d = await (await fetch('/api/scan/detect/' + s.id, {method: 'POST'})).json(); s.corners = d.corners; s.found = d.found;
+        if (!d.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true}); }
+  catch { toast('Could not reach the app', {error: true}); }
+  busy(); syncControls(); draw(); preview(true); };
+$('#dropBack').onclick = () => { sides.Back = null; syncControls(); draw(); };
+$('#sideSw').addEventListener('click', e => { const b = e.target.closest('[data-side]'); if (!b) return;
+  cur = b.dataset.side; VZ.reset(); syncControls(); draw(); if (S()) preview(true); });
+$('#pick').onclick = () => $('#file').click();
+$('#empty').onclick = () => $('#file').click();
+$('#file').onchange = e => { upload(e.target.files[0]); e.target.value = ''; };
+dropPhotos(stage, upload);
+function busy(text) { $('#busy').hidden = !text; if (text) $('#busyText').textContent = text; }
+const loadImg = src => new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = src; });
+
+async function setSide(side, d, state) {
+  const img = await loadImg('/api/scan/src/' + d.id + '?max=1800');
+  sides[side] = {id: d.id, w: d.w, h: d.h, found: d.found, img, rot: 0, trim: d.defaults?.trim ?? 2, ...COLOURS, ...(state || {}), corners: d.corners};
+}
+async function upload(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(file.name)) { toast('Please choose a photo or scan (JPG or PNG)', {error: true}); return; }
+  busy('Finding the card…');
+  try {
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch('/api/scan/upload', {method: 'POST', body: fd});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Upload failed (' + r.status + ')');
+    await setSide(cur, d); VZ.reset();
+    if (!d.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true});
+  } catch (e) { toast(e.message, {error: true}); }
+  busy(); syncControls(); draw(); preview(true);
+}
+
+$('#add').onclick = async e => {
+  const btn = e.currentTarget; btn.disabled = true;
+  try {
+    const body = {sides: {}, type: $('#ctype').value, name: $('#name').value.trim(), job: editing ? editing.job : undefined};
+    for (const k of ['Front', 'Back']) if (sides[k]) body.sides[k] = sideBody(sides[k]);
+    const r = await fetch('/api/scan/add', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Could not add the card (' + r.status + ')');
+    toolFinish(d.job, editing);
+  } catch (err) { toast(err.message, {error: true}); btn.disabled = false; }
+};
+
+(async () => {
+  const names = (await toolSettings('scan')).type_names || {};    // the shop's own names (Rename types)
+  $('#ctype').innerHTML = TYPES.map(([k, n]) => `<option value="${k}">${esc(k === 'scan' ? n : (names[k] || n))}</option>`).join('');
+  syncControls(); draw();
+  const job = new URLSearchParams(location.search).get('job');
+  if (!job) return;
+  busy('Opening the card…');
+  try {                                               // "Edit scan" from the exports list
+    const r = await fetch('/api/scan/job/' + encodeURIComponent(job));
+    if (!r.ok) throw new Error('That scanned card is not in the exports any more');
+    const d = await r.json();
+    editing = d;
+    for (const side of ['Front', 'Back']) if (d.sides[side]) await setSide(side, d.sides[side], d.sides[side].state);
+    $('#name').value = d.name || ''; $('#ctype').value = d.type || 'scan';
+    toolEditing(d.name || 'scanned card', d.ref, $('#add'), $('#footHint'));
+  } catch (e) { toast(e.message, {error: true}); }
+  busy(); syncControls(); draw(); if (S()) preview(true);
+})();
+</script>
+</body>
+</html>

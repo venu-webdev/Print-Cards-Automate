@@ -384,6 +384,42 @@ def clean_background(doc, page, xref, rect):
     page.replace_image(xref, stream=png.tobytes())
 
 
+# ===================================================================== exact photo spot
+# The "Adjust photo" editor needs the holder's photo area on the finished card. Every card maker
+# knows exactly where that is: the photo is its own picture object in the PDF, and the maker knows
+# which PDF rectangle (the "canvas") becomes the whole 1016 x 638 card. So the area is plain
+# geometry - no searching. Each maker stores it as  card.info["cps_photo_box"] = [x0, y0, x1, y1].
+def card_photo_box(doc, page, canvas, area=None):
+    """Holder's photo on the finished card -> [x0, y0, x1, y1] px (x1 / y1 exclusive) or None.
+    canvas: the PDF rectangle (page coordinates, as shown) that is scaled to the whole card;
+    area: where to look for the photo (default: the canvas). The photo = the biggest portrait-ish
+    picture there that looks like a photo (not the QR code, not a signature or logo)."""
+    import avatar
+    area = area or canvas
+    best = None
+    for img in page.get_images(full=True):
+        xref, w, h = img[0], img[2], img[3]
+        if w < 60 or h < 60:
+            continue
+        for r in page.get_image_rects(xref):
+            r = r * page.rotation_matrix
+            if not area.contains(r) or not 0.6 <= r.width / max(r.height, 1e-6) <= 1.05:
+                continue
+            if r.get_area() > 0.3 * area.get_area() or (best and r.get_area() <= best.get_area()):
+                continue
+            try:
+                if not avatar._looks_like_photo(avatar._pil(doc, xref)):     # QR code, emblem, ...
+                    continue
+            except Exception:
+                continue
+            best = r
+    if best is None:
+        return None
+    sx, sy = OUT_W / canvas.width, OUT_H / canvas.height
+    return [max(0, round((best.x0 - canvas.x0) * sx)), max(0, round((best.y0 - canvas.y0) * sy)),
+            min(OUT_W, round((best.x1 - canvas.x0) * sx)), min(OUT_H, round((best.y1 - canvas.y0) * sy))]
+
+
 def process_page(doc, page):
     bg = find_background(page)
     if bg is None:
@@ -396,7 +432,11 @@ def process_page(doc, page):
     clip = pymupdf.Rect(rect.x0 + inset, rect.y0 + inset, rect.x1 - inset, rect.y1 - inset)
     pix = page.get_pixmap(dpi=RENDER_DPI, clip=clip, alpha=False)
     img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-    return img.resize((OUT_W, OUT_H), Image.LANCZOS)
+    card = img.resize((OUT_W, OUT_H), Image.LANCZOS)
+    box = card_photo_box(doc, page, clip)                # the clip is stretched to the whole card
+    if box:
+        card.info["cps_photo_box"] = box
+    return card
 
 
 # ===================================================================== Voter ID (e-EPIC)
@@ -533,8 +573,15 @@ def sheet_card_images(doc):
                     ys, xs = np.nonzero(photo)
                     print(f"    photo brightened {round((VOTER_PHOTO_BRIGHTNESS - 1) * 100)}% "
                           f"({xs.max() - xs.min() + 1}x{ys.max() - ys.min() + 1} px)")
-            card = Image.fromarray(crop)
-            out.append((side, card.resize((OUT_W, OUT_H), Image.LANCZOS)))
+            card = Image.fromarray(crop).resize((OUT_W, OUT_H), Image.LANCZOS)
+            if side == "Front":                          # scanned sheet: the photo is found in the picture
+                photo = find_main_photo(crop)
+                if photo is not None:
+                    ys, xs = np.nonzero(photo)
+                    kx, ky = OUT_W / crop.shape[1], OUT_H / crop.shape[0]
+                    card.info["cps_photo_box"] = [round(xs.min() * kx), round(ys.min() * ky),
+                                                  round((xs.max() + 1) * kx), round((ys.max() + 1) * ky)]
+            out.append((side, card))
             if len(out) >= len(PAGE_NAMES):
                 return out
     if not out:
@@ -672,7 +719,7 @@ def detect_type(doc):
 
 
 def export_name(card_type, stem, side, details=None, pattern=None):
-    """Export file name (without extension), e.g. PAN_C-REDDAMMA_017N_FRONT."""
+    """Export file name (without extension), e.g. PAN_SAMPLE-NAME_1234_FRONT."""
     import card_details
     if details is None:
         details = {"type_label": card_details.TYPE_LABEL.get(card_type, card_type.upper())}

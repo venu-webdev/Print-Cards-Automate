@@ -367,6 +367,8 @@ def generate(doc, layout_rects):
         rgba = Image.fromarray(arr, "RGBA")
         flat = Image.new("RGB", rgba.size, (255, 255, 255))
         flat.paste(rgba, mask=rgba.split()[3])          # rounded corners -> white
+        if side == "Front" and photo_rect is not None:  # the photo was pasted into PHOTO_BOX: exactly there
+            flat.info["cps_photo_box"] = list(PHOTO_BOX)
         out.append((side, flat))
     found = {"number": bool(number), "issued": bool(issued), "details": bool(details),
              "mobile": bool(mobile), "photo": photo_rect is not None, "qr": qr_rect is not None,
