@@ -1,4 +1,5 @@
 """A4 office printing (e.g. Canon iR 5500) - Card Print Studio plugin. Delete the folder to remove."""
+import base64
 import io
 import threading
 
@@ -17,7 +18,7 @@ except Exception:
     HAVE_WIN32 = False
 
 DEFAULT = {"printer": None, "color": True, "dpi": 600,
-           "trays": {}}          # printer name -> chosen tray name (missing = Multi-purpose Tray)
+           "trays": {}, "profiles": {}}          # printer name -> chosen tray name (missing = Multi-purpose Tray)
 LOCK = threading.Lock()
 DM_PAPERSIZE, DM_ORIENTATION, DM_COPIES, DM_COLOR, DM_DEFAULTSOURCE, DM_DUPLEX = 0x2, 0x1, 0x100, 0x800, 0x200, 0x1000
 DMDUP_SIMPLEX = 1      # the Canons default to 2-sided - laminated sheets must be 1 page = 1 sheet
@@ -85,24 +86,30 @@ def pick_tray(cfg, printer, wanted=None):
     return tl, None
 
 
-def print_pdf(printer, pdf_bytes, pages, copies, color, max_dpi, doc_name, output_file=None, tray_id=None):
+def print_pdf(printer, pdf_bytes, pages, copies, color, max_dpi, doc_name, output_file=None, tray_id=None, profile=None):
     """Print the given PDF pages at 100% scale (A4 sheet = A4 paper), one page per sheet,
     from the given paper tray (bin number from trays(); None = driver default)."""
-    h = win32print.OpenPrinter(printer)
-    try:
-        dm = win32print.GetPrinter(h, 2)["pDevMode"]
-        dm.PaperSize, dm.Orientation, dm.Copies = 9, 1, copies              # A4 portrait
-        dm.Color = 2 if color else 1
-        dm.Duplex = DMDUP_SIMPLEX                                            # never print on the back
-        dm.Fields |= DM_PAPERSIZE | DM_ORIENTATION | DM_COPIES | DM_COLOR | DM_DUPLEX
-        if tray_id is not None:
-            dm.DefaultSource = int(tray_id)
-            dm.Fields |= DM_DEFAULTSOURCE
-        win32print.DocumentProperties(0, h, printer, dm, dm, 2 | 8)           # DM_IN_BUFFER | DM_OUT_BUFFER
-    finally:
-        win32print.ClosePrinter(h)
+    keep = None
+    if profile:                                          # settings captured from the driver's own dialog (High Definition Text, tray, ...)
+        import win_print as wp
+        hdc, keep = wp.make_print_dc(printer, profile, paper_code=9, orientation=1, copies=copies)
+        dc = win32ui.CreateDCFromHandle(hdc)
+    else:
+        h = win32print.OpenPrinter(printer)
+        try:
+            dm = win32print.GetPrinter(h, 2)["pDevMode"]
+            dm.PaperSize, dm.Orientation, dm.Copies = 9, 1, copies              # A4 portrait
+            dm.Color = 2 if color else 1
+            dm.Duplex = DMDUP_SIMPLEX                                            # never print on the back
+            dm.Fields |= DM_PAPERSIZE | DM_ORIENTATION | DM_COPIES | DM_COLOR | DM_DUPLEX
+            if tray_id is not None:
+                dm.DefaultSource = int(tray_id)
+                dm.Fields |= DM_DEFAULTSOURCE
+            win32print.DocumentProperties(0, h, printer, dm, dm, 2 | 8)          # DM_IN_BUFFER | DM_OUT_BUFFER
+        finally:
+            win32print.ClosePrinter(h)
+        dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer, dm))
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
-    dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer, dm))
     try:
         dx, dy = dc.GetDeviceCaps(LOGPIXELSX), dc.GetDeviceCaps(LOGPIXELSY)
         ox, oy = dc.GetDeviceCaps(PHYSICALOFFSETX), dc.GetDeviceCaps(PHYSICALOFFSETY)
@@ -304,7 +311,7 @@ def register(host):
         names = ", ".join(s["rows"][i]["name"] for i in waiting)
         print_pdf(printer, small_sheet_pdf(entries).tobytes(), [0], 1, color, c.get("dpi", 600),
                   f"Aadhaar Small sheet - row {', '.join(str(i + 1) for i in waiting)} - {names}"[:120],
-                  tray_id=tray["id"] if tray else None)
+                  tray_id=tray["id"] if tray else None, profile=profile_blob(printer))
         now = time.strftime("%Y-%m-%dT%H:%M:%S")
         for i in waiting:
             s["rows"][i].update(status="printed", at=now)
@@ -426,13 +433,49 @@ def register(host):
     def cfg():
         return host.load_config(DEFAULT)
 
+    def profile_blob(printer):
+        b64 = (cfg().get("profiles") or {}).get(printer)
+        try:
+            return base64.b64decode(b64) if b64 else None
+        except Exception:
+            return None
+
+    @bp.post("/setup")
+    def setup():
+        import win_print as wp
+        b = request.get_json(force=True) or {}
+        printer = b.get("printer") or cfg().get("printer")
+        if not printer:
+            return jsonify({"error": "Choose a printer first"}), 400
+        try:
+            blob = wp.prompt_capture(printer, seed=profile_blob(printer))
+        except Exception as e:
+            return jsonify({"error": f"Could not open the printer settings: {e}"}), 500
+        if blob is None:
+            return jsonify({"cancelled": True})
+        c = cfg(); c.setdefault("profiles", {})[printer] = base64.b64encode(blob).decode()
+        host.save_config(c)
+        return jsonify({"saved": True, "summary": wp.summary(blob)})
+
+    @bp.post("/setup/clear")
+    def setup_clear():
+        printer = (request.get_json(force=True) or {}).get("printer") or cfg().get("printer")
+        c = cfg(); (c.get("profiles") or {}).pop(printer, None); host.save_config(c)
+        return jsonify({"cleared": True})
+
     @bp.get("/status")
     def status():
         st, c = printers(), cfg()
         if st.get("ok") and c["printer"] not in st["printers"]:
             c["printer"] = guess(st["printers"], st.get("default"))
         tl, t = pick_tray(c, c["printer"]) if st.get("ok") else ([], None)
-        return jsonify(dict(c, service=st, tray_list=tl, tray=t["name"] if t else None))
+        blob = profile_blob(c.get("printer")) if st.get("ok") else None
+        prof = None
+        if blob:
+            import win_print as wp
+            prof = wp.summary(blob)
+        return jsonify(dict(c, service=st, tray_list=tl, tray=t["name"] if t else None,
+                            has_profile=blob is not None, profile=prof))
 
     @bp.get("/trays")
     def tray_list():
@@ -512,7 +555,7 @@ def register(host):
             with LOCK:
                 print_pdf(printer, pdf, pages, copies, color, c.get("dpi", 600),
                           f"Aadhaar A4 - {b.get('name') or 'sheet'} - {', '.join(want)}"[:120],
-                          tray_id=tray["id"] if tray else None)
+                          tray_id=tray["id"] if tray else None, profile=profile_blob(printer))
         except pywintypes.error as e:
             msg = ("The Windows print service (Print Spooler) is not running - start it and try again."
                    if e.winerror in (1722, 1726) else f"Printing failed: {e.strerror}")
@@ -542,7 +585,7 @@ def register(host):
             with LOCK:
                 print_pdf(printer, pdf, pages, copies, color, c.get("dpi", 600),
                           f"PVC cards A4 - {b.get('name') or f'{len(jobs)} cards'}"[:120],
-                          tray_id=tray["id"] if tray else None)
+                          tray_id=tray["id"] if tray else None, profile=profile_blob(printer))
         except Exception as e:
             if getattr(e, "code", None) == 400:                         # abort(400) from the A4 builder
                 return jsonify({"error": "Laminated Aadhaar sheets are already A4 - choose PVC cards"}), 400
@@ -565,7 +608,7 @@ def register(host):
         try:
             with LOCK:
                 print_pdf(printer, scale_test_pdf(), [0], 1, False, c.get("dpi", 600), "A4 scale test",
-                          tray_id=tray["id"] if tray else None)
+                          tray_id=tray["id"] if tray else None, profile=profile_blob(printer))
         except pywintypes.error as e:
             return jsonify({"error": f"Printing failed: {e.strerror}"}), 500
         except Exception as e:

@@ -335,8 +335,15 @@
         </div>
       </section>
       <section class="scard pcard">
-        <header><h4>Print quality &ndash; small text</h4><p>Aadhaar sheets have a lot of tiny text.</p></header>
-        <div class="pbody"><div class="pnotice">On the Canon, open <b>Printing preferences &rarr; Quality tab</b> and set <b>Objective &rarr; High Definition Text</b> (&ldquo;best for originals with many small characters&rdquo;) as this printer&rsquo;s default. The app keeps whatever quality the printer&rsquo;s default is set to &ndash; this is a Canon driver setting the app can&rsquo;t switch on its own.</div></div>
+        <header><h4>Printer settings (quality, High Definition Text)</h4><p>Aadhaar sheets have a lot of tiny text. Set it up on the printer once &ndash; the app records and reuses it.</p></header>
+        <div class="pbody pstack">
+          <div class="pnotice" id="opsProf"></div>
+          <div class="rowf" style="gap:8px;flex-wrap:wrap">
+            <button class="btn" id="opsSetup">${ICON}Set up on the printer…</button>
+            <button class="btn quiet" id="opsClear" hidden>Use the printer default again</button>
+          </div>
+          <p class="hint" style="margin:0">A Windows settings window for this printer opens on this PC. On the Canon go to the <b>Quality</b> tab and pick <b>Objective &rarr; High Definition Text</b>, then <b>OK</b>.</p>
+        </div>
       </section>
       <section class="scard pcard">
         <header><h4>Scale test page</h4><p>Checks the printer keeps 100% size. Measure with a ruler: the square must be exactly 100&nbsp;mm and a real card must fit the card outline.</p></header>
@@ -344,7 +351,24 @@
           <a class="btn quiet" href="${BASE}/test.pdf" download>Download test PDF</a></div></div>
       </section>`;
     const dpi = () => el.querySelector('#opsD button[aria-pressed="true"]').dataset.v;
-    const save = async () => { try { await api(BASE + '/config', {printer: el.querySelector('#opsP').value, tray: el.querySelector('#opsTray').value, color: el.querySelector('#opsC').checked, dpi: dpi()}); toast('Saved'); } catch (e) { toast(e.message, {error: true}); } };
+    const prof = el.querySelector('#opsProf'), clearBtn = el.querySelector('#opsClear');
+    function showProfile(st) {
+      const has = st && st.has_profile;
+      prof.innerHTML = has
+        ? `&#10003; <b>Saved settings in use</b> <span class="hint">(from the printer’s own dialog)</span>`
+        : `Using the printer’s <b>current default</b> settings. Click <b>Set up</b> to record the quality / High Definition Text.`;
+      clearBtn.hidden = !has;
+    }
+    showProfile(s);
+    const save = async () => { try { const r = await api(BASE + '/config', {printer: el.querySelector('#opsP').value, tray: el.querySelector('#opsTray').value, color: el.querySelector('#opsC').checked, dpi: dpi()}); toast('Saved'); showProfile(r); } catch (e) { toast(e.message, {error: true}); } };
+    el.querySelector('#opsSetup').onclick = async ev => {
+      const b = ev.currentTarget; b.disabled = true; b.innerHTML = '<span class="spin"></span>Opening the printer window…';
+      try { const r = await api(BASE + '/setup', {printer: el.querySelector('#opsP').value}); toast(r.cancelled ? 'Set-up cancelled' : 'Printer settings saved'); }
+      catch (e) { toast(e.message, {error: true}); }
+      b.disabled = false; b.innerHTML = ICON + 'Set up on the printer…';
+      try { showProfile(await api(BASE + '/status')); } catch {}
+    };
+    clearBtn.onclick = async () => { try { await api(BASE + '/setup/clear', {printer: el.querySelector('#opsP').value}); toast('Back to the printer default'); showProfile(await api(BASE + '/status')); } catch (e) { toast(e.message, {error: true}); } };
     el.querySelectorAll('#opsTray,input').forEach(x => x.onchange = save);
     bindTrays(el.querySelector('#opsP'), el.querySelector('#opsTray'), save);   // new printer -> its trays, then save
     el.querySelectorAll('#opsD button').forEach(b => b.onclick = () => { el.querySelectorAll('#opsD button').forEach(x => x.setAttribute('aria-pressed', x === b)); save(); });

@@ -5,6 +5,7 @@ Canon G2010. The 4x6 paper size is chosen on the printer by its driver name; the
 the whole sheet (borderless look). The glossy paper TYPE, borderless mode and print QUALITY are the
 printer's own driver settings - set them once in the printer's Preferences and this plugin keeps them.
 """
+import base64
 import io
 import re
 import threading
@@ -22,7 +23,7 @@ try:
 except Exception:
     HAVE_WIN32 = False
 
-DEFAULT = {"printer": None, "copies": 1}
+DEFAULT = {"printer": None, "copies": 1, "profiles": {}}      # profiles: printer name -> base64 DEVMODE blob
 LOCK = threading.Lock()
 DM_PAPERSIZE, DM_ORIENTATION, DM_COPIES, DM_COLOR = 0x2, 0x1, 0x100, 0x800
 LOGPIXELSX, LOGPIXELSY = 88, 90
@@ -90,7 +91,7 @@ def has_4x6(name):
     return find_4x6(name)[0] is not None
 
 
-def print_image(printer, img, copies=1, paper_code=None, output_file=None):
+def print_image(printer, img, copies=1, paper_code=None, output_file=None, profile=None):
     """Print a PIL image onto the printer's 4x6 paper, filling the whole sheet. output_file: print to that
     file instead (for a virtual 'print to file' printer, used by the self-test). Returns the paper name."""
     if not HAVE_WIN32:
@@ -100,19 +101,26 @@ def print_image(printer, img, copies=1, paper_code=None, output_file=None):
         paper_code, paper_name = find_4x6(printer)
         if paper_code is None:
             raise ValueError(f"{printer} has no 4x6 / 10x15cm paper size - load 4x6 paper and pick that size in the driver")
-    h = win32print.OpenPrinter(printer)
-    try:
-        dm = win32print.GetPrinter(h, 2)["pDevMode"]     # inherits glossy / borderless / quality from the default
-        portrait = img.height >= img.width
-        dm.PaperSize = int(paper_code)
-        dm.Orientation = 1 if portrait else 2
-        dm.Copies = max(1, int(copies))
-        dm.Color = 2
-        dm.Fields |= DM_PAPERSIZE | DM_ORIENTATION | DM_COPIES | DM_COLOR
-        win32print.DocumentProperties(0, h, printer, dm, dm, 2 | 8)
-    finally:
-        win32print.ClosePrinter(h)
-    dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer, dm))
+    portrait = img.height >= img.width
+    orient = 1 if portrait else 2
+    keep = None
+    if profile:                                          # settings captured from the driver's own dialog (glossy / borderless / quality)
+        import win_print as wp
+        hdc, keep = wp.make_print_dc(printer, profile, paper_code=int(paper_code), orientation=orient, copies=max(1, int(copies)))
+        dc = win32ui.CreateDCFromHandle(hdc)
+    else:
+        h = win32print.OpenPrinter(printer)
+        try:
+            dm = win32print.GetPrinter(h, 2)["pDevMode"]   # inherits glossy / borderless / quality from the printer default
+            dm.PaperSize = int(paper_code)
+            dm.Orientation = orient
+            dm.Copies = max(1, int(copies))
+            dm.Color = 2
+            dm.Fields |= DM_PAPERSIZE | DM_ORIENTATION | DM_COPIES | DM_COLOR
+            win32print.DocumentProperties(0, h, printer, dm, dm, 2 | 8)
+        finally:
+            win32print.ClosePrinter(h)
+        dc = win32ui.CreateDCFromHandle(win32gui.CreateDC("WINSPOOL", printer, dm))
     try:
         physW, physH = dc.GetDeviceCaps(PHYSICALWIDTH), dc.GetDeviceCaps(PHYSICALHEIGHT)
         ox, oy = dc.GetDeviceCaps(PHYSICALOFFSETX), dc.GetDeviceCaps(PHYSICALOFFSETY)
@@ -145,6 +153,37 @@ def register(host):
     def cfg():
         return host.load_config(DEFAULT)
 
+    def profile_blob(printer):
+        b64 = (cfg().get("profiles") or {}).get(printer)
+        try:
+            return base64.b64decode(b64) if b64 else None
+        except Exception:
+            return None
+
+    @bp.post("/setup")
+    def setup():
+        """Open the printer's own Preferences dialog on this PC; save the chosen settings for this printer."""
+        import win_print as wp
+        b = request.get_json(force=True) or {}
+        printer = b.get("printer") or cfg().get("printer")
+        if not printer:
+            return jsonify({"error": "Choose a printer first"}), 400
+        try:
+            blob = wp.prompt_capture(printer, seed=profile_blob(printer))
+        except Exception as e:
+            return jsonify({"error": f"Could not open the printer settings: {e}"}), 500
+        if blob is None:
+            return jsonify({"cancelled": True})
+        c = cfg(); c.setdefault("profiles", {})[printer] = base64.b64encode(blob).decode()
+        host.save_config(c)
+        return jsonify({"saved": True, "summary": wp.summary(blob)})
+
+    @bp.post("/setup/clear")
+    def setup_clear():
+        printer = (request.get_json(force=True) or {}).get("printer") or cfg().get("printer")
+        c = cfg(); (c.get("profiles") or {}).pop(printer, None); host.save_config(c)
+        return jsonify({"cleared": True})
+
     def fail(e):
         if HAVE_WIN32 and isinstance(e, pywintypes.error):
             msg = ("The Windows print service (Print Spooler) is not running - start it and try again."
@@ -167,6 +206,11 @@ def register(host):
             code, name = find_4x6(c["printer"]) if c.get("printer") else (None, None)
             out["paper"] = name
             out["ready"] = code is not None
+            blob = profile_blob(c.get("printer"))
+            out["has_profile"] = blob is not None
+            if blob:
+                import win_print as wp
+                out["profile"] = wp.summary(blob)
         return jsonify(out)
 
     @bp.post("/config")
@@ -194,7 +238,7 @@ def register(host):
         try:
             img = Image.open(io.BytesIO(host.get_image(job, "Sheet")))
             with LOCK:
-                paper = print_image(printer, img, copies)
+                paper = print_image(printer, img, copies, profile=profile_blob(printer))
         except Exception as e:
             return fail(e)
         return jsonify({"printer": printer, "paper": paper, "copies": copies, "name": info.get("name")})

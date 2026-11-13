@@ -67,18 +67,46 @@
     el.innerHTML = `
       <section class="scard pcard"><header><h4>Photo printer</h4><p>Used for the passport-photo sheet, on 4×6 / 10×15 cm paper (e.g. Canon G2010).</p></header>
         <div class="pbody"><select class="text" id="phsP">${printerOpts(list, s.printer)}</select><div class="hint" id="phsPaper" style="margin-top:8px"></div></div></section>
+      <section class="scard pcard"><header><h4>Printer settings (glossy, borderless, quality)</h4>
+          <p>Set these on the printer once — the app records and reuses them for every passport sheet. (The app always picks the 4×6 size for you.)</p></header>
+        <div class="pbody pstack">
+          <div class="pnotice" id="phsProf"></div>
+          <div class="rowf" style="gap:8px;flex-wrap:wrap">
+            <button class="btn" id="phsSetup">${ICON}Set up on the printer…</button>
+            <button class="btn quiet" id="phsClear" hidden>Use the printer default again</button>
+          </div>
+          <p class="hint" style="margin:0">A Windows settings window for this printer opens on this PC — set <b>Glossy Photo Paper</b>, <b>Borderless</b> and the quality, then click <b>OK</b>.</p>
+        </div></section>
       <section class="scard pcard"><header><h4>Default copies</h4><p>Used when you click Print on a passport sheet. Saves automatically.</p></header>
-        <div class="pbody"><input class="text mono" id="phsC" type="number" min="1" max="99" value="${+s.copies || 1}" style="max-width:120px"></div></section>
-      <div class="pnotice">${glossyNote}</div>`;
+        <div class="pbody"><input class="text mono" id="phsC" type="number" min="1" max="99" value="${+s.copies || 1}" style="max-width:120px"></div></section>`;
     const sel = $id('phsP');
+    function showProfile(st) {
+      const has = st.has_profile, p = st.profile || {};
+      $id('phsProf').className = 'pnotice';
+      $id('phsProf').innerHTML = has
+        ? `&#10003; <b>Saved settings in use</b>${p.colour ? ' &middot; ' + esc(p.colour) : ''}${p.copies ? ' &middot; ' + p.copies + ' cop' + (p.copies > 1 ? 'ies' : 'y') : ''} <span class="hint">(from the printer&rsquo;s own dialog)</span>`
+        : `Using the printer&rsquo;s <b>current default</b> settings. Click <b>Set up</b> to record glossy / borderless / quality from the driver.`;
+      $id('phsClear').hidden = !has;
+    }
     async function save() {
       try {
         const r = await api(BASE + '/config', {printer: sel.value, copies: +$id('phsC').value || 1});
         $id('phsPaper').innerHTML = r.ready ? `&#10003; 4×6 paper found: <b>${esc(r.paper)}</b>`
           : `<span style="color:var(--err)">No 4×6 / 10×15 cm paper size on this printer.</span>`;
+        showProfile(r);
       } catch (e) { toast(e.message, {error: true}); }
     }
     sel.onchange = save; $id('phsC').onchange = save;
+    $id('phsSetup').onclick = async e => {
+      const b = e.currentTarget; b.disabled = true; b.innerHTML = '<span class="spin"></span>Opening the printer window…';
+      try {
+        const r = await api(BASE + '/setup', {printer: sel.value});
+        if (r.cancelled) toast('Set-up cancelled – nothing changed');
+        else { toast('Printer settings saved'); }
+      } catch (err) { toast(err.message, {error: true}); }
+      b.disabled = false; b.innerHTML = ICON + 'Set up on the printer…'; save();
+    };
+    $id('phsClear').onclick = async () => { try { await api(BASE + '/setup/clear', {printer: sel.value}); toast('Back to the printer default'); save(); } catch (e) { toast(e.message, {error: true}); } };
     save();
   });
 })();
