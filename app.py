@@ -660,8 +660,8 @@ def _round_mask(w, h):
 def a4_pdf(job_ids, rounded=True):
     """A4 portrait pages, each row = one card: Front left, Back right, at real PVC size.
     rounded: the cards get their real rounded corners (3.18 mm) and a thin rounded cutting line;
-    otherwise square with cut marks. The JPEGs are embedded as they are (300 dpi, with any Adjust
-    changes) - no re-compression; the corners are a mask on top of them."""
+    otherwise square with cut marks. Rounded cards are flattened onto white and embedded as one plain
+    JPEG per card (no soft mask) so the PDF opens in Adobe Reader too; square cards embed the JPEG as-is."""
     import pymupdf
     from PIL import Image
     cw, ch, gap = CARD_MM[0] * MM, CARD_MM[1] * MM, A4_GAP_MM * MM
@@ -680,8 +680,16 @@ def a4_pdf(job_ids, rounded=True):
             r = pymupdf.Rect(x, y, x + cw, y + ch)
             data = get_image(job_id, side)
             if rounded:
-                w, h = Image.open(io.BytesIO(data)).size
-                page.insert_image(r, stream=data, mask=_round_mask(w, h), keep_proportion=False)
+                # bake the rounded corners onto white and embed one plain JPEG (no soft mask) - a separate
+                # image mask here makes Adobe Reader show only the borders ("contact the creator").
+                im = Image.open(io.BytesIO(data)).convert("RGB")
+                w, h = im.size
+                mask = Image.open(io.BytesIO(_round_mask(w, h))).convert("L")
+                card = Image.new("RGB", (w, h), "white")
+                card.paste(im, (0, 0), mask)
+                buf = io.BytesIO()
+                card.save(buf, "JPEG", quality=95, subsampling=0, dpi=(300, 300))
+                page.insert_image(r, stream=buf.getvalue(), keep_proportion=False)
                 page.draw_rect(r, color=(0.6, 0.6, 0.6), width=0.35, radius=CARD_RADIUS_MM / CARD_MM[1])
             else:
                 page.insert_image(r, stream=data, keep_proportion=False)
