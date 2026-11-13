@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passport photos – Card Print Studio</title>
+<script>
+  try { const t = localStorage.getItem('cps-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap">
+<link rel="stylesheet" href="/assets/tools.css">
+<style>
+/* Passport photos only (the layout is shared: /assets/tools.css) */
+.sheet { width: min(100%, calc((100vh - 157px) * 1.5)); border: 1px solid var(--line-2); border-radius: 4px; overflow: hidden; background: #fff; box-shadow: var(--shadow-2); }
+.sheet canvas { width: 100%; height: auto; display: block; }
+/* 4 x 6 portrait: the same sheet turned 90 deg right, shown just as it will print */
+.sheet.portrait { width: min(100%, calc((100vh - 157px) * 0.667)); aspect-ratio: 2 / 3; display: grid; place-items: center; }
+.sheet.portrait canvas { width: 150%; height: auto; transform: rotate(90deg); }
+.swatches { display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+.sw { display: flex; gap: 6px; align-items: center; }
+.sw button, .own { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); padding: 0; cursor: pointer; box-shadow: var(--shadow-1); }
+.sw button[aria-pressed="true"], .own.on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.own { position: relative; overflow: hidden; background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+.own input { position: absolute; inset: -6px; width: 40px; height: 40px; opacity: 0; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="/" title="Back to Card Print Studio">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M7 10h5M7 14h3"/></svg></span>
+      Card Print Studio <span class="plan">Pro</span> <span class="crumb">/ <b id="toolName">Passport photos</b><span id="toolCrumb"></span></span>
+    </a>
+    <div class="switch" id="steps" role="group" aria-label="Steps">
+      <button type="button" data-step="1" aria-pressed="true"><i class="n">1</i>Adjust the photo <small>35 &times; 45 mm</small></button>
+      <button type="button" data-step="2" aria-pressed="false" disabled><i class="n">2</i>Make 8 photos <small>6 &times; 4 in</small></button>
+    </div>
+    <div class="end">
+      <button class="btn quiet icon" id="themeBtn" aria-label="Switch light or dark mode"><svg class="i" id="themeIc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"></svg></button>
+      <a class="btn" href="/"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back to cards</a>
+    </div>
+  </header>
+
+  <main class="tmain" id="ppStep1">
+    <div class="work">
+      <div class="stage" id="ppStage" tabindex="0" aria-label="Photo editor: drag to move, corner handles to resize, round handle to rotate">
+        <canvas id="ppView"></canvas>
+        <div class="empty" id="ppEmpty">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 7"/></svg>
+          <b>Choose the customer&rsquo;s photo</b>
+          <span>or drop a JPG / PNG anywhere on this page</span>
+          <span class="tips">A phone picture, a scan or a studio shot. Next you move, resize and turn it inside the 35 &times; 45 mm frame and fix the colours; then make the sheet of 8.</span>
+        </div>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="tools">
+        <button class="btn" id="ppPick" type="button"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 7"/></svg><span id="ppPickLbl">Choose photo</span></button>
+        <button class="btn icon" id="ppRotL" type="button" title="Turn left 90°"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6"/><path d="M4.5 10A8 8 0 1 1 6 16.5"/></svg></button>
+        <button class="btn icon" id="ppRotR" type="button" title="Turn right 90°"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 4v6h-6"/><path d="M19.5 10A8 8 0 1 0 18 16.5"/></svg></button>
+        <button class="btn icon" id="ppFlip" type="button" title="Flip (mirror) left - right"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M9 7L4 17h5zM15 7l5 10h-5z"/></svg></button>
+      </div>
+      <div class="grp"><div class="gh">Fit</div>
+        <div class="tools">
+          <button class="btn" id="ppFill" type="button" title="Make the photo cover the whole 35 x 45 frame, centred">Fill frame</button>
+          <button class="btn" id="ppWhole" type="button" title="Show the whole photo inside the frame">Whole photo</button>
+          <button class="btn" id="ppCenter" type="button" title="Centre the photo in the frame">Centre</button>
+        </div>
+        <label class="adj-row"><span>Size</span><input type="range" id="ppZoom" min="0.2" max="5" step="0.01" value="1"><output id="ppZoomV">100%</output></label>
+        <label class="adj-row"><span>Rotate</span><input type="range" id="ppAng" min="-180" max="180" step="0.5" value="0"><output id="ppAngV">0°</output></label>
+      </div>
+      <div class="grp"><div class="gh">Background</div>
+        <div class="swatches"><span>Fill</span>
+          <div class="sw" id="ppBgSw">
+            <button type="button" data-c="#ffffff" title="White" style="background:#fff"></button>
+            <button type="button" data-c="#cfe0f3" title="Light blue" style="background:#cfe0f3"></button>
+            <button type="button" data-c="#4a90d9" title="Blue" style="background:#4a90d9"></button>
+            <button type="button" data-c="#d9d9d9" title="Grey" style="background:#d9d9d9"></button>
+            <button type="button" data-c="#d64545" title="Red" style="background:#d64545"></button>
+            <label class="own" title="Any colour"><input type="color" id="ppBg" value="#ffffff"></label>
+          </div>
+        </div>
+        <p class="hint" style="margin:0">Shows behind the photo. Upload a <b>PNG with the background removed</b> to put the person on a solid colour. Your choice is kept for the next photos.</p>
+      </div>
+      <div class="grp"><div class="gh">Colours</div>
+        <label class="adj-row"><span>Brightness</span><input type="range" id="ppBr" min="-50" max="50" step="1" value="0"><output id="ppBrV">0</output></label>
+        <label class="adj-row"><span>Contrast</span><input type="range" id="ppCt" min="-50" max="50" step="1" value="0"><output id="ppCtV">0</output></label>
+        <label class="adj-row"><span>Colour</span><input type="range" id="ppSat" min="-100" max="100" step="1" value="0"><output id="ppSatV">0</output></label>
+        <label class="adj-row"><span>Warmth</span><input type="range" id="ppWarm" min="-30" max="30" step="1" value="0"><output id="ppWarmV">0</output></label>
+        <button class="btn quiet left" id="ppReset" type="button">Reset all</button>
+      </div>
+      <p class="hint"><b>Drag</b> the photo &middot; <b>corner handles</b> resize &middot; <b>round handle</b> rotates (Shift = 15° steps) &middot; <b>scroll</b> resizes &middot; arrow keys nudge &middot; <b>Alt + scroll</b> zooms the view, <b>Space + drag</b> moves it, Ctrl 0 fits. Only what is inside the frame is printed; the dotted line is where the border starts.</p>
+    </aside>
+  </main>
+
+  <main class="tmain" id="ppStep2" hidden>
+    <div class="work center"><div class="sheet"><canvas id="ppSheet" width="1800" height="1200"></canvas></div></div>
+    <aside class="side">
+      <div class="grp"><div class="gh">Border</div>
+        <label class="adj-row"><span>Width</span><input type="range" id="ppBw" min="0" max="5" step="0.1" value="1"><output id="ppBwV">1 mm</output></label>
+        <div class="swatches"><span>Colour</span>
+          <div class="sw" id="ppSw">
+            <button type="button" data-c="#ffffff" title="White" style="background:#fff"></button>
+            <button type="button" data-c="#000000" title="Black" style="background:#000"></button>
+            <button type="button" data-c="#9ca3af" title="Grey" style="background:#9ca3af"></button>
+            <button type="button" data-c="#1d4ed8" title="Blue" style="background:#1d4ed8"></button>
+            <button type="button" data-c="#b91c1c" title="Red" style="background:#b91c1c"></button>
+            <label class="own" title="Any colour"><input type="color" id="ppColor" value="#ffffff"></label>
+          </div>
+        </div>
+        <label class="chk"><input type="checkbox" id="ppGuide" checked> Thin cut line around each photo</label>
+      </div>
+      <div class="grp"><div class="gh">For printing</div>
+        <div class="switch" id="ppOrient" role="group" aria-label="Sheet orientation">
+          <button type="button" data-o="landscape" aria-pressed="true" style="padding:0 14px">6 &times; 4 landscape</button>
+          <button type="button" data-o="portrait" aria-pressed="false" style="padding:0 14px">4 &times; 6 portrait</button>
+        </div>
+        <p class="hint" id="ppOrientHint">Standard is <b>6 &times; 4 landscape</b>. Pick <b>4 &times; 6 portrait</b> if the photo paper sits <b>upright</b> in the printer tray (e.g. Canon G2010): the sheet is turned 90&deg; so the printer&rsquo;s preview matches the paper. Then print at <b>100% / borderless</b>.</p>
+      </div>
+      <div class="grp"><div class="gh">Customer</div>
+        <label class="fld">Name <span class="hint">optional &ndash; shown in the exports list, used for the file name</span><input class="text" id="ppName" value="" placeholder="e.g. Ravi Kumar" maxlength="60" autocomplete="off"></label>
+      </div>
+      <p class="hint">8 photos, each exactly 35 &times; 45 mm (the border is inside it), on one 4R (6 &times; 4 inch) sheet. Print at <b>100% / actual size</b>, not &ldquo;fit to page&rdquo;.</p>
+    </aside>
+  </main>
+
+  <footer class="foot" id="ppFoot1"><span class="hint">Step 1 of 2 &ndash; when the photo looks right:</span><div class="grow"></div>
+    <button class="btn primary lg" id="ppNext">Make 8 photos <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></footer>
+  <footer class="foot" id="ppFoot2" hidden><button class="btn" id="ppBack"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Back to adjust</button>
+    <span class="hint" id="ppAddHint">Step 2 of 2 &ndash; then save, download or print it from the exports list, like the cards.</span><div class="grow"></div>
+    <button class="btn primary lg" id="ppAdd" title="Add this sheet to the exports list">Add to exports <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></footer>
+</div>
+<canvas id="ppCrop" width="413" height="531" hidden></canvas>
+<input type="file" id="ppFile" accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp" hidden>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/assets/tools.js"></script>
+<script>
+/* a photo dropped on the main page is handed to the passport page (kept in this browser only, removed when read) */
+const handoff = {
+  db: () => new Promise((ok, bad) => { const r = indexedDB.open('cps-handoff', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); }),
+  async put(file) { const db = await this.db();
+    await new Promise((ok, bad) => { const t = db.transaction('f', 'readwrite'); t.objectStore('f').put(file, 'passport'); t.oncomplete = ok; t.onerror = () => bad(t.error); }); },
+  async take() { try { const db = await this.db();
+    return await new Promise(ok => { const t = db.transaction('f', 'readwrite'), s = t.objectStore('f'), g = s.get('passport');
+      g.onsuccess = () => { s.delete('passport'); ok(g.result || null); }; g.onerror = () => ok(null); }); } catch { return null; } },
+};
+
+/* ---------- passport photos ----------
+   Step 1: free transform of the photo (move / resize / rotate / flip) under a 35 x 45 mm frame; what is inside
+           the frame becomes the photo, drawn at print size 413 x 531 px (300 dpi) into #ppCrop.
+   Step 2: that photo 8 times, 2 rows x 4 columns, on a 6 x 4 inch sheet (1800 x 1200 px), border + cut line. */
+const PP = (() => {
+  const MM = 300 / 25.4, SW = 1800, SH = 1200, COLS = 4, ROWS = 2;
+  const PW = Math.round(35 * MM), PH = Math.round(45 * MM);              // 413 x 531 px
+  const GX = (SW - COLS * PW) / (COLS + 1), GY = (SH - ROWS * PH) / (ROWS + 1);   // equal padding around and between
+  const COLOURS = {br: 0, ct: 0, sat: 0, warm: 0};
+  // photo transform, in frame pixels: centre (cx, cy), scale s (frame px per photo px), angle a (degrees), flip (1 / -1)
+  const st = {img: null, step: 1, cx: PW / 2, cy: PH / 2, s: 1, a: 0, flip: 1, ...COLOURS, bg: '#ffffff', bw: 1, color: '#ffffff', guide: true, orient: 'landscape'};
+  try { const k = JSON.parse(localStorage.getItem('cps.passport') || '{}');
+    for (const f of ['bg', 'bw', 'color', 'guide', 'orient']) if (k[f] !== undefined) st[f] = k[f]; } catch {}
+  const keep = () => { try { localStorage.setItem('cps.passport', JSON.stringify({bg: st.bg, bw: st.bw, color: st.color, guide: st.guide, orient: st.orient})); } catch {} };
+  const rad = d => d * Math.PI / 180, norm = d => ((d + 180) % 360 + 360) % 360 - 180;
+  const rot = (x, y, d) => { const c = Math.cos(rad(d)), s = Math.sin(rad(d)); return [x * c - y * s, x * s + y * c]; };
+
+  // scale at which the photo (at angle a) just covers the frame / just fits whole inside it
+  function fillScale(a = st.a) { const c = Math.abs(Math.cos(rad(a))), s = Math.abs(Math.sin(rad(a))), {width: iw, height: ih} = st.img;
+    return Math.max((PW * c + PH * s) / iw, (PW * s + PH * c) / ih); }
+  function wholeScale(a = st.a) { const c = Math.abs(Math.cos(rad(a))), s = Math.abs(Math.sin(rad(a))), {width: iw, height: ih} = st.img;
+    return Math.min(PW / (iw * c + ih * s), PH / (iw * s + ih * c)); }
+  // scale / turn around a fixed point (frame px)
+  function zoomAt(px, py, f) { const lo = fillScale() * 0.1, hi = fillScale() * 10, ns = Math.min(hi, Math.max(lo, st.s * f)); f = ns / st.s;
+    st.cx = px + (st.cx - px) * f; st.cy = py + (st.cy - py) * f; st.s = ns; }
+  function turnAt(px, py, d) { const [x, y] = rot(st.cx - px, st.cy - py, d); st.cx = px + x; st.cy = py + y; st.a = norm(st.a + d); }
+  // the 4 corners of the photo (frame px), clockwise from top-left
+  function corners() { const hw = st.img.width / 2 * st.s, hh = st.img.height / 2 * st.s;
+    return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => { const [rx, ry] = rot(x, y, st.a); return [st.cx + rx, st.cy + ry]; }); }
+
+  // ---- the finished photo (print size)
+  function renderPhoto() {
+    const cv = $('#ppCrop'), ctx = cv.getContext('2d');
+    ctx.save(); ctx.fillStyle = st.bg; ctx.fillRect(0, 0, PW, PH);   // solid background (shows through a cut-out PNG)
+    if (st.img) {
+      ctx.translate(st.cx, st.cy); ctx.rotate(rad(st.a)); ctx.scale(st.s * st.flip, st.s);
+      ctx.filter = `brightness(${1 + st.br / 100}) contrast(${1 + st.ct / 100}) saturate(${1 + st.sat / 100})`;
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(st.img, -st.img.width / 2, -st.img.height / 2);
+    }
+    ctx.restore();
+    if (st.img && st.warm) {                                              // warmth: a little more red, less blue (or the other way)
+      const d = ctx.getImageData(0, 0, PW, PH), p = d.data, f = st.warm / 100;
+      for (let i = 0; i < p.length; i += 4) { p[i] = Math.min(255, p[i] * (1 + f)); p[i + 2] = Math.min(255, p[i + 2] * (1 - f)); }
+      ctx.putImageData(d, 0, 0);
+    }
+  }
+
+  // ---- the editor view: whole photo (dimmed outside the frame), frame, handles
+  const view = {D: 1, fx: 0, fy: 0, w: 0, h: 0};                       // frame px -> stage px (fit x workspace zoom, pan)
+  const toStage = ([x, y]) => [view.fx + x * view.D, view.fy + y * view.D];
+  const toFrame = (X, Y) => [(X - view.fx) / view.D, (Y - view.fy) / view.D];
+  function handles() {                                                   // stage px; kept inside the view so they can always be grabbed
+    const pad = 10, cl = ([X, Y]) => [Math.min(view.w - pad, Math.max(pad, X)), Math.min(view.h - pad, Math.max(pad, Y))];
+    const cs = corners().map(toStage);
+    const top = toStage([(corners()[0][0] + corners()[1][0]) / 2, (corners()[0][1] + corners()[1][1]) / 2]);
+    const [ux, uy] = rot(0, -1, st.a);
+    return {corners: cs, hc: cs.map(cl), top, rh: cl([top[0] + ux * 30, top[1] + uy * 30])};
+  }
+  function drawView() {
+    const cv = $('#ppView'), r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (!r.width) return;
+    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+    const ctx = cv.getContext('2d'), m = 64;
+    const L = VZ.layout(Math.min((r.width - 2 * m) / PW, (r.height - 2 * m) / PH), PW, PH, r.width, r.height, -6);
+    Object.assign(view, {w: r.width, h: r.height, D: L.D, fx: L.ox, fy: L.oy});
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#2b2c31'; ctx.fillRect(0, 0, r.width, r.height);
+    if (!st.img) return;
+    const {D, fx, fy} = view;
+    ctx.save(); ctx.translate(fx, fy); ctx.scale(D, D);                 // whole photo, dimmed
+    ctx.translate(st.cx, st.cy); ctx.rotate(rad(st.a)); ctx.scale(st.s * st.flip, st.s);
+    ctx.globalAlpha = 0.35; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(st.img, -st.img.width / 2, -st.img.height / 2); ctx.restore();
+    ctx.imageSmoothingEnabled = D * (window.devicePixelRatio || 1) < 2;  // zoomed in: show the real print pixels sharp (like Photoshop)
+    ctx.drawImage($('#ppCrop'), fx, fy, PW * D, PH * D);               // what will be printed
+    ctx.imageSmoothingEnabled = true;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(fx - .5, fy - .5, PW * D + 1, PH * D + 1);
+    if (st.bw > 0) { const b = st.bw * MM * D; ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.strokeRect(fx + b, fy + b, PW * D - 2 * b, PH * D - 2 * b); ctx.restore(); }
+    // size marks: 35 mm above, 45 mm on the right
+    ctx.strokeStyle = ctx.fillStyle = '#ffb36b'; ctx.lineWidth = 1.2; ctx.font = '600 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ty = fy + PH * D + 18, rx = fx + PW * D + 18;          // 35 mm below (the rotate handle is usually on top)
+    ctx.beginPath(); ctx.moveTo(fx, ty); ctx.lineTo(fx + PW * D, ty); ctx.moveTo(fx, ty - 4); ctx.lineTo(fx, ty + 4); ctx.moveTo(fx + PW * D, ty - 4); ctx.lineTo(fx + PW * D, ty + 4);
+    ctx.moveTo(rx, fy); ctx.lineTo(rx, fy + PH * D); ctx.moveTo(rx - 4, fy); ctx.lineTo(rx + 4, fy); ctx.moveTo(rx - 4, fy + PH * D); ctx.lineTo(rx + 4, fy + PH * D); ctx.stroke();
+    const tag = (t, x, y) => { const w = ctx.measureText(t).width + 10; ctx.fillStyle = '#2b2c31'; ctx.fillRect(x - w / 2, y - 8, w, 16); ctx.fillStyle = '#ffb36b'; ctx.fillText(t, x, y); };
+    tag('35 mm', fx + PW * D / 2, ty);
+    ctx.save(); ctx.translate(rx, fy + PH * D / 2); ctx.rotate(-Math.PI / 2); tag('45 mm', 0, 0); ctx.restore();
+    // transform box + handles
+    const h = handles();
+    ctx.strokeStyle = '#4ea1ff'; ctx.lineWidth = 1.5; ctx.beginPath(); h.corners.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(...h.top); ctx.lineTo(...h.rh); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    for (const [x, y] of h.hc) { ctx.fillRect(x - 5, y - 5, 10, 10); ctx.strokeRect(x - 5, y - 5, 10, 10); }
+    ctx.beginPath(); ctx.arc(h.rh[0], h.rh[1], 7, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(h.rh[0], h.rh[1], 3, -2.2, 1.6); ctx.stroke();
+  }
+  let raf = 0;
+  const out = (id, v) => { $(id).textContent = v; };
+  function paint() {
+    renderPhoto(); drawView();
+    $('#ppEmpty').hidden = !!st.img; VZ.show(!!st.img && st.step === 1);
+    $('#steps [data-step="2"]').disabled = !st.img; $('#ppPickLbl').textContent = st.img ? 'Another photo' : 'Choose photo';
+    const z = st.img ? st.s / fillScale() : 1;
+    $('#ppZoom').value = z; out('#ppZoomV', Math.round(z * 100) + '%');
+    $('#ppAng').value = st.a; out('#ppAngV', (Math.round(st.a * 10) / 10) + '°');
+    for (const k of ['br', 'ct', 'sat', 'warm']) { $('#pp' + {br: 'Br', ct: 'Ct', sat: 'Sat', warm: 'Warm'}[k]).value = st[k]; out('#pp' + {br: 'Br', ct: 'Ct', sat: 'Sat', warm: 'Warm'}[k] + 'V', st[k]); }
+    ['#ppRotL', '#ppRotR', '#ppFlip', '#ppFill', '#ppWhole', '#ppCenter', '#ppZoom', '#ppAng', '#ppBr', '#ppCt', '#ppSat', '#ppWarm', '#ppReset', '#ppNext'].forEach(s => $(s).disabled = !st.img);
+    $('#ppBw').value = st.bw; out('#ppBwV', (+st.bw).toFixed(1).replace(/\.0$/, '') + ' mm');
+    let preset = false;
+    document.querySelectorAll('#ppSw [data-c]').forEach(b => { const on = b.dataset.c === st.color.toLowerCase(); preset ||= on; b.setAttribute('aria-pressed', on); });
+    $('#ppSw .own').classList.toggle('on', !preset); $('#ppColor').value = st.color; $('#ppGuide').checked = st.guide;
+    let bgPreset = false;
+    document.querySelectorAll('#ppBgSw [data-c]').forEach(b => { const on = b.dataset.c === st.bg.toLowerCase(); bgPreset ||= on; b.setAttribute('aria-pressed', on); });
+    $('#ppBgSw .own').classList.toggle('on', !bgPreset); $('#ppBg').value = st.bg;
+    document.querySelectorAll('#ppOrient [data-o]').forEach(b => b.setAttribute('aria-pressed', b.dataset.o === st.orient));
+    $('.sheet').classList.toggle('portrait', st.orient === 'portrait');    // show the turned 4x6 just as it prints
+    if (st.step === 2) renderSheet();
+  }
+  const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); };
+  function fill() { Object.assign(st, {s: fillScale(), cx: PW / 2, cy: PH / 2}); }
+
+  // ---- the sheet
+  function renderSheet() {
+    const ctx = $('#ppSheet').getContext('2d'), b = Math.round(st.bw * MM), photo = $('#ppCrop');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, SW, SH);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const x = Math.round(GX + c * (PW + GX)), y = Math.round(GY + r * (PH + GY));
+      ctx.drawImage(photo, x, y, PW, PH);
+      if (b > 0) { ctx.fillStyle = st.color;                               // border inside the 35 x 45
+        ctx.fillRect(x, y, PW, b); ctx.fillRect(x, y + PH - b, PW, b); ctx.fillRect(x, y, b, PH); ctx.fillRect(x + PW - b, y, b, PH); }
+      if (st.guide) { ctx.strokeStyle = '#b4b4b4'; ctx.lineWidth = 2; ctx.strokeRect(x - 1, y - 1, PW + 2, PH + 2); }   // just outside the photo
+    }
+  }
+  function step(n) {
+    st.step = n;
+    $('#ppStep1').hidden = $('#ppFoot1').hidden = n !== 1; $('#ppStep2').hidden = $('#ppFoot2').hidden = n !== 2;
+    document.querySelectorAll('#steps [data-step]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.step === n));
+    paint();
+  }
+  async function load(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(file.name)) { toast('Please choose a photo (JPG or PNG)', {error: true}); return; }
+    try {
+      const url = URL.createObjectURL(file), im = new Image();
+      im.src = url; await im.decode(); URL.revokeObjectURL(url);
+      Object.assign(st, COLOURS, {img: im, file, a: 0, flip: 1}); fill(); VZ.reset();
+      step(1);
+    } catch { toast('Could not open that photo', {error: true}); }
+  }
+
+  // ---- "Edit" from the exports list: the original photo + every setting as it was
+  let editing = null;                                   // {job, name, ref}
+  async function openJob(id) {
+    const r = await fetch('/api/passport/' + encodeURIComponent(id));
+    if (!r.ok) { toast('That passport entry is not in the exports any more', {error: true}); step(1); return; }
+    const d = await r.json();
+    editing = {job: d.job, name: d.name, ref: d.ref};
+    $('#ppName').value = d.name === 'Passport photos' ? '' : d.name;
+    toolEditing(d.name, d.ref, $('#ppAdd'), $('#ppAddHint'));
+    if (!d.has_source) { toast('This sheet was made before editing was possible – choose the photo again', {error: true}); step(1); return; }
+    try {
+      const im = new Image(), url = URL.createObjectURL(await (await fetch(`/api/passport/${d.job}/source`)).blob());
+      im.src = url; await im.decode(); URL.revokeObjectURL(url);
+      Object.assign(st, COLOURS, {img: im, file: null, a: 0, flip: 1}); fill();
+      Object.assign(st, d.state);                       // position, size, angle, colours, border as saved
+      VZ.reset();
+      step(1);
+    } catch { toast('Could not open the original photo', {error: true}); step(1); }
+  }
+  const asDataUrl = f => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => bad(r.error); r.readAsDataURL(f); });
+
+  // ---- mouse / touch on the editor
+  const stage = $('#ppStage'), cvs = $('#ppView'); let drag = null;
+  const VZ = viewZoom({stage, canvas: cvs, redraw: () => drawView(), active: () => st.step === 1 && !!st.img});
+  const at = e => { const r = cvs.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  function hit([X, Y]) {
+    const h = handles(), near = ([x, y], d = 11) => Math.hypot(X - x, Y - y) <= d;
+    if (near(h.rh, 12)) return {mode: 'rotate'};
+    const i = h.hc.findIndex(p => near(p));
+    if (i >= 0) return {mode: 'scale', i, cursor: ((h.corners[i][0] - h.corners[(i + 2) % 4][0]) * (h.corners[i][1] - h.corners[(i + 2) % 4][1]) > 0) ? 'nwse-resize' : 'nesw-resize'};
+    return {mode: 'move'};
+  }
+  cvs.addEventListener('pointerdown', e => {
+    if (!st.img) return;
+    const P = at(e), F = toFrame(...P), h = hit(P), cs = corners();
+    drag = {...h, F, cx: st.cx, cy: st.cy, s: st.s, a: st.a};
+    if (h.mode === 'scale') { drag.Q = cs[(h.i + 2) % 4]; drag.u = [cs[h.i][0] - drag.Q[0], cs[h.i][1] - drag.Q[1]]; }   // opposite corner stays put
+    if (h.mode === 'rotate') drag.ang0 = Math.atan2(F[1] - st.cy, F[0] - st.cx);
+    cvs.setPointerCapture(e.pointerId); stage.focus(); e.preventDefault();
+  });
+  cvs.addEventListener('pointermove', e => {
+    const P = at(e);
+    if (!drag) { if (st.img) { const h = hit(P); cvs.style.cursor = h.mode === 'rotate' ? 'crosshair' : h.mode === 'scale' ? h.cursor : 'move'; } return; }
+    const F = toFrame(...P);
+    if (drag.mode === 'move') { st.cx = drag.cx + F[0] - drag.F[0]; st.cy = drag.cy + F[1] - drag.F[1]; }
+    else if (drag.mode === 'scale') {
+      const {Q, u} = drag, uu = u[0] * u[0] + u[1] * u[1];
+      const t0 = ((drag.F[0] - Q[0]) * u[0] + (drag.F[1] - Q[1]) * u[1]) / uu, t = ((F[0] - Q[0]) * u[0] + (F[1] - Q[1]) * u[1]) / uu;
+      const f = Math.max(0.05, t / (t0 || 1));
+      const ns = Math.min(fillScale() * 10, Math.max(fillScale() * 0.1, drag.s * f)), k = ns / drag.s;
+      st.s = ns; st.cx = Q[0] + (drag.cx - Q[0]) * k; st.cy = Q[1] + (drag.cy - Q[1]) * k;
+    } else {
+      let a = drag.a + (Math.atan2(F[1] - st.cy, F[0] - st.cx) - drag.ang0) * 180 / Math.PI;
+      if (e.shiftKey) a = Math.round(a / 15) * 15;
+      st.a = norm(a);
+    }
+    later();
+  });
+  const end = () => { drag = null; };
+  cvs.addEventListener('pointerup', end); cvs.addEventListener('pointercancel', end);
+  cvs.addEventListener('wheel', e => { if (!st.img) return; e.preventDefault();
+    const F = toFrame(...at(e)); zoomAt(F[0], F[1], e.deltaY < 0 ? 1.06 : 1 / 1.06); later(); }, {passive: false});
+  stage.addEventListener('keydown', e => {
+    if (!st.img) return;
+    const d = e.shiftKey ? 10 : 1, mv = {ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d]}[e.key];
+    if (mv) { e.preventDefault(); st.cx += mv[0]; st.cy += mv[1]; later(); }
+    else if (!e.ctrlKey && (e.key === '+' || e.key === '=')) { zoomAt(PW / 2, PH / 2, 1.04); later(); }
+    else if (!e.ctrlKey && e.key === '-') { zoomAt(PW / 2, PH / 2, 1 / 1.04); later(); }
+  });
+  new ResizeObserver(() => drawView()).observe(stage);
+  $('#ppEmpty').onclick = () => $('#ppFile').click();
+  dropPhotos(stage, load);
+
+  // ---- buttons and sliders
+  $('#ppPick').onclick = () => $('#ppFile').click();
+  $('#ppFile').onchange = e => { load(e.target.files[0]); e.target.value = ''; };
+  $('#ppRotL').onclick = () => { turnAt(PW / 2, PH / 2, -90); paint(); };
+  $('#ppRotR').onclick = () => { turnAt(PW / 2, PH / 2, 90); paint(); };
+  $('#ppFlip').onclick = () => { st.flip *= -1; paint(); };
+  $('#ppFill').onclick = () => { fill(); paint(); };
+  $('#ppWhole').onclick = () => { Object.assign(st, {s: wholeScale(), cx: PW / 2, cy: PH / 2}); paint(); };
+  $('#ppCenter').onclick = () => { Object.assign(st, {cx: PW / 2, cy: PH / 2}); paint(); };
+  $('#ppZoom').oninput = e => { zoomAt(PW / 2, PH / 2, +e.target.value * fillScale() / st.s); later(); };
+  $('#ppAng').oninput = e => { turnAt(PW / 2, PH / 2, +e.target.value - st.a); later(); };
+  for (const [id, key] of [['#ppBr', 'br'], ['#ppCt', 'ct'], ['#ppSat', 'sat'], ['#ppWarm', 'warm']])
+    $(id).oninput = e => { st[key] = +e.target.value; later(); };
+  $('#ppReset').onclick = () => { Object.assign(st, COLOURS, {a: 0, flip: 1}); fill(); paint(); };
+  $('#ppNext').onclick = () => step(2);
+  $('#steps').addEventListener('click', e => { const b = e.target.closest('[data-step]'); if (b && !b.disabled) step(+b.dataset.step); });
+  $('#ppBack').onclick = () => step(1);
+  $('#ppBw').oninput = e => { st.bw = +e.target.value; keep(); paint(); };
+  $('#ppSw').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { st.color = b.dataset.c; keep(); paint(); } });
+  $('#ppBgSw').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { st.bg = b.dataset.c; keep(); paint(); } });
+  $('#ppBg').oninput = e => { st.bg = e.target.value; keep(); paint(); };
+  $('#ppColor').oninput = e => { st.color = e.target.value; keep(); paint(); };
+  $('#ppGuide').onchange = e => { st.guide = e.target.checked; keep(); paint(); };
+  $('#ppOrient').addEventListener('click', e => { const b = e.target.closest('[data-o]'); if (b) { st.orient = b.dataset.o; keep(); paint(); } });
+
+  // ---- output: the sheet becomes an entry in the exports list (save / download / print it from there)
+  $('#ppAdd').onclick = async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try {
+      renderSheet();
+      const state = {cx: st.cx, cy: st.cy, s: st.s, a: st.a, flip: st.flip, br: st.br, ct: st.ct, sat: st.sat, warm: st.warm,
+                     bg: st.bg, bw: st.bw, color: st.color, guide: st.guide, orient: st.orient};
+      const body = {image: $('#ppSheet').toDataURL('image/png'), photo: $('#ppCrop').toDataURL('image/png'), name: $('#ppName').value.trim(),
+                    state, job: editing ? editing.job : undefined,
+                    source: st.file ? await asDataUrl(st.file) : undefined};        // a new photo chosen (or a new sheet)
+      const r = await fetch('/api/passport', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `Could not add the photos (${r.status})`);
+      toolFinish(d.job, editing);
+    } catch (err) { toast(err.message, {error: true}); btn.disabled = false; }
+  };
+  return {open(file) { if (file) load(file); else step(1); }, openJob,
+          _st: st, _view: view, _vz: VZ};
+})();
+
+// a photo dropped on the main page comes along
+(async () => {
+  await toolSettings('passport');                         // the shop's own name for this tool (Rename types)
+  const q = new URLSearchParams(location.search);
+  if (q.get('job')) { await PP.openJob(q.get('job')); return; }       // Edit from the exports list
+  let file = null;
+  if (q.has('photo')) { file = await handoff.take(); history.replaceState(null, '', '/passport'); }
+  PP.open(file);
+})();
+</script>
+</body>
+</html>

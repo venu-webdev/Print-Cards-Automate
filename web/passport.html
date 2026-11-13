@@ -70,6 +70,19 @@
         <label class="adj-row"><span>Size</span><input type="range" id="ppZoom" min="0.2" max="5" step="0.01" value="1"><output id="ppZoomV">100%</output></label>
         <label class="adj-row"><span>Rotate</span><input type="range" id="ppAng" min="-180" max="180" step="0.5" value="0"><output id="ppAngV">0°</output></label>
       </div>
+      <div class="grp"><div class="gh">Background</div>
+        <div class="swatches"><span>Fill</span>
+          <div class="sw" id="ppBgSw">
+            <button type="button" data-c="#ffffff" title="White" style="background:#fff"></button>
+            <button type="button" data-c="#cfe0f3" title="Light blue" style="background:#cfe0f3"></button>
+            <button type="button" data-c="#4a90d9" title="Blue" style="background:#4a90d9"></button>
+            <button type="button" data-c="#d9d9d9" title="Grey" style="background:#d9d9d9"></button>
+            <button type="button" data-c="#d64545" title="Red" style="background:#d64545"></button>
+            <label class="own" title="Any colour"><input type="color" id="ppBg" value="#ffffff"></label>
+          </div>
+        </div>
+        <p class="hint" style="margin:0">Shows behind the photo. Upload a <b>PNG with the background removed</b> to put the person on a solid colour. Your choice is kept for the next photos.</p>
+      </div>
       <div class="grp"><div class="gh">Colours</div>
         <label class="adj-row"><span>Brightness</span><input type="range" id="ppBr" min="-50" max="50" step="1" value="0"><output id="ppBrV">0</output></label>
         <label class="adj-row"><span>Contrast</span><input type="range" id="ppCt" min="-50" max="50" step="1" value="0"><output id="ppCtV">0</output></label>
@@ -145,10 +158,10 @@ const PP = (() => {
   const GX = (SW - COLS * PW) / (COLS + 1), GY = (SH - ROWS * PH) / (ROWS + 1);   // equal padding around and between
   const COLOURS = {br: 0, ct: 0, sat: 0, warm: 0};
   // photo transform, in frame pixels: centre (cx, cy), scale s (frame px per photo px), angle a (degrees), flip (1 / -1)
-  const st = {img: null, step: 1, cx: PW / 2, cy: PH / 2, s: 1, a: 0, flip: 1, ...COLOURS, bw: 1, color: '#ffffff', guide: true, orient: 'landscape'};
+  const st = {img: null, step: 1, cx: PW / 2, cy: PH / 2, s: 1, a: 0, flip: 1, ...COLOURS, bg: '#ffffff', bw: 1, color: '#ffffff', guide: true, orient: 'landscape'};
   try { const k = JSON.parse(localStorage.getItem('cps.passport') || '{}');
-    for (const f of ['bw', 'color', 'guide', 'orient']) if (k[f] !== undefined) st[f] = k[f]; } catch {}
-  const keep = () => { try { localStorage.setItem('cps.passport', JSON.stringify({bw: st.bw, color: st.color, guide: st.guide, orient: st.orient})); } catch {} };
+    for (const f of ['bg', 'bw', 'color', 'guide', 'orient']) if (k[f] !== undefined) st[f] = k[f]; } catch {}
+  const keep = () => { try { localStorage.setItem('cps.passport', JSON.stringify({bg: st.bg, bw: st.bw, color: st.color, guide: st.guide, orient: st.orient})); } catch {} };
   const rad = d => d * Math.PI / 180, norm = d => ((d + 180) % 360 + 360) % 360 - 180;
   const rot = (x, y, d) => { const c = Math.cos(rad(d)), s = Math.sin(rad(d)); return [x * c - y * s, x * s + y * c]; };
 
@@ -168,7 +181,7 @@ const PP = (() => {
   // ---- the finished photo (print size)
   function renderPhoto() {
     const cv = $('#ppCrop'), ctx = cv.getContext('2d');
-    ctx.save(); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH);
+    ctx.save(); ctx.fillStyle = st.bg; ctx.fillRect(0, 0, PW, PH);   // solid background (shows through a cut-out PNG)
     if (st.img) {
       ctx.translate(st.cx, st.cy); ctx.rotate(rad(st.a)); ctx.scale(st.s * st.flip, st.s);
       ctx.filter = `brightness(${1 + st.br / 100}) contrast(${1 + st.ct / 100}) saturate(${1 + st.sat / 100})`;
@@ -246,7 +259,10 @@ const PP = (() => {
     $('#ppBw').value = st.bw; out('#ppBwV', (+st.bw).toFixed(1).replace(/\.0$/, '') + ' mm');
     let preset = false;
     document.querySelectorAll('#ppSw [data-c]').forEach(b => { const on = b.dataset.c === st.color.toLowerCase(); preset ||= on; b.setAttribute('aria-pressed', on); });
-    $('.own').classList.toggle('on', !preset); $('#ppColor').value = st.color; $('#ppGuide').checked = st.guide;
+    $('#ppSw .own').classList.toggle('on', !preset); $('#ppColor').value = st.color; $('#ppGuide').checked = st.guide;
+    let bgPreset = false;
+    document.querySelectorAll('#ppBgSw [data-c]').forEach(b => { const on = b.dataset.c === st.bg.toLowerCase(); bgPreset ||= on; b.setAttribute('aria-pressed', on); });
+    $('#ppBgSw .own').classList.toggle('on', !bgPreset); $('#ppBg').value = st.bg;
     document.querySelectorAll('#ppOrient [data-o]').forEach(b => b.setAttribute('aria-pressed', b.dataset.o === st.orient));
     $('.sheet').classList.toggle('portrait', st.orient === 'portrait');    // show the turned 4x6 just as it prints
     if (st.step === 2) renderSheet();
@@ -375,6 +391,8 @@ const PP = (() => {
   $('#ppBack').onclick = () => step(1);
   $('#ppBw').oninput = e => { st.bw = +e.target.value; keep(); paint(); };
   $('#ppSw').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { st.color = b.dataset.c; keep(); paint(); } });
+  $('#ppBgSw').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) { st.bg = b.dataset.c; keep(); paint(); } });
+  $('#ppBg').oninput = e => { st.bg = e.target.value; keep(); paint(); };
   $('#ppColor').oninput = e => { st.color = e.target.value; keep(); paint(); };
   $('#ppGuide').onchange = e => { st.guide = e.target.checked; keep(); paint(); };
   $('#ppOrient').addEventListener('click', e => { const b = e.target.closest('[data-o]'); if (b) { st.orient = b.dataset.o; keep(); paint(); } });
@@ -385,7 +403,7 @@ const PP = (() => {
     try {
       renderSheet();
       const state = {cx: st.cx, cy: st.cy, s: st.s, a: st.a, flip: st.flip, br: st.br, ct: st.ct, sat: st.sat, warm: st.warm,
-                     bw: st.bw, color: st.color, guide: st.guide, orient: st.orient};
+                     bg: st.bg, bw: st.bw, color: st.color, guide: st.guide, orient: st.orient};
       const body = {image: $('#ppSheet').toDataURL('image/png'), photo: $('#ppCrop').toDataURL('image/png'), name: $('#ppName').value.trim(),
                     state, job: editing ? editing.job : undefined,
                     source: st.file ? await asDataUrl(st.file) : undefined};        // a new photo chosen (or a new sheet)

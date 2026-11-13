@@ -335,6 +335,10 @@
         </div>
       </section>
       <section class="scard pcard">
+        <header><h4>Print quality &ndash; small text</h4><p>Aadhaar sheets have a lot of tiny text.</p></header>
+        <div class="pbody"><div class="pnotice">On the Canon, open <b>Printing preferences &rarr; Quality tab</b> and set <b>Objective &rarr; High Definition Text</b> (&ldquo;best for originals with many small characters&rdquo;) as this printer&rsquo;s default. The app keeps whatever quality the printer&rsquo;s default is set to &ndash; this is a Canon driver setting the app can&rsquo;t switch on its own.</div></div>
+      </section>
+      <section class="scard pcard">
         <header><h4>Scale test page</h4><p>Checks the printer keeps 100% size. Measure with a ruler: the square must be exactly 100&nbsp;mm and a real card must fit the card outline.</p></header>
         <div class="pbody"><div class="rowf" style="gap:8px;flex-wrap:wrap"><button class="btn" id="opsT">${ICON}Print scale test page</button>
           <a class="btn quiet" href="${BASE}/test.pdf" download>Download test PDF</a></div></div>

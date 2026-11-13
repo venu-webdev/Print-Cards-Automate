@@ -777,7 +777,7 @@ def _passport_orient(sheet, portrait):
 #               passport.json         the editor settings: position / size / angle / flip, colours, border
 PASSPORT_SRC_TYPES = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "BMP": ".bmp"}
 PASSPORT_STATE_KEYS = {"cx": float, "cy": float, "s": float, "a": float, "flip": int, "br": float, "ct": float,
-                       "sat": float, "warm": float, "bw": float, "color": str, "guide": bool}
+                       "sat": float, "warm": float, "bg": str, "bw": float, "color": str, "guide": bool}
 
 
 def _passport_state(raw):
@@ -788,8 +788,9 @@ def _passport_state(raw):
                 out[k] = kind(raw[k])
             except (TypeError, ValueError):
                 pass
-    if "color" in out and not re.fullmatch(r"#[0-9a-fA-F]{6}", out["color"]):
-        out.pop("color")
+    for c in ("color", "bg"):
+        if c in out and not re.fullmatch(r"#[0-9a-fA-F]{6}", out[c]):
+            out.pop(c)
     if isinstance(raw, dict) and raw.get("orient") == "portrait":    # 4x6 paper fed upright (sheet turned 90 deg)
         out["orient"] = "portrait"
     return out
