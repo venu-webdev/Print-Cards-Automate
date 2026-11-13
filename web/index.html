@@ -1226,7 +1226,7 @@ window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== $('#toolFrame').contentWindow) return;
   const m = e.data || {};
   if (m.cps === 'tool-close') closeTool();
-  else if (m.cps === 'tool-done') { closeTool(); loadHistory().then(() => showAddedJob(m.job, m.updated)); }
+  else if (m.cps === 'tool-done') { closeTool(); showAddedJob(m.job, m.updated); }
 });
 
 /* ---------- upload / queue ---------- */
@@ -1308,9 +1308,12 @@ async function passportAdded() {             // fallback if a tool page was open
   history.replaceState(null, '', location.pathname + location.hash);
   await showAddedJob(id, !!q.get('updated'));
 }
-async function showAddedJob(id, updated) {   // a tool added or updated a job: show it at the top of the list
-  const j = jobs.find(x => x.job === id);
+async function showAddedJob(id, updated) {   // a tool added or updated a job: put its fresh data at the top
+  let d = null;
+  try { d = (await api('/api/jobs')).find(x => x.job === id); } catch {}
+  const j = d ? fromServer(d) : jobs.find(x => x.job === id);
   if (!j) return;
+  jobs = [j, ...jobs.filter(x => x.job !== id)];        // newest first; also refreshes an edited sheet
   tab = 'all'; query = ''; $('#search').value = ''; render();
   const what = isPassport(j) ? 'Passport photos' : 'Scanned card';
   toast(updated ? `${what} updated` : `${what} added to the exports`);
