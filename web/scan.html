@@ -17,6 +17,12 @@
 .result.loading img { opacity: .55; }
 .result .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; }
 .rlabel { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--muted); margin-bottom: -6px; }
+.pagestrip { position: absolute; left: 0; right: 0; top: 0; display: flex; gap: 8px; padding: 8px 10px; overflow-x: auto; z-index: 2;
+             background: linear-gradient(rgba(15,15,18,.9) 55%, transparent); }
+.pagestrip button { flex: none; width: 58px; height: 58px; padding: 0; border-radius: 6px; overflow: hidden; border: 2px solid transparent;
+                    background: #fff center/cover no-repeat; cursor: pointer; position: relative; box-shadow: var(--shadow-1); }
+.pagestrip button .pn { position: absolute; left: 2px; top: 2px; font-size: 10px; font-weight: 600; color: #fff; background: rgba(0,0,0,.6); border-radius: 3px; padding: 0 4px; }
+.pagestrip button[aria-pressed="true"] { border-color: #4ea1ff; }
 </style>
 </head>
 <body>
@@ -42,11 +48,12 @@
         <canvas id="view"></canvas>
         <div class="empty" id="empty">
           <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="6.5" y="8" width="11" height="8" rx="1.2"/></svg>
-          <b id="emptyTitle">Choose a photo or scan of the card&rsquo;s front</b>
-          <span>or drop a JPG / PNG anywhere on this page</span>
-          <span class="tips">Best results: the whole card in the photo, on a plain table that is darker or lighter than the card, taken from straight above, no flash glare. A flatbed scan works too.</span>
+          <b id="emptyTitle">Choose an image, scan or PDF of the card&rsquo;s front</b>
+          <span>or drop a file anywhere on this page</span>
+          <span class="tips">Any image (JPG / PNG / WebP) or <b>PDF</b> works &ndash; a photo, a flatbed scan, or a PDF (flattened, or with selectable text / images). Then drag the <b>4 corners</b> onto the card&rsquo;s edges.</span>
         </div>
-        <div class="busy" id="busy" hidden><span><span class="spin"></span><span id="busyText">Finding the card…</span></span></div>
+        <div class="pagestrip" id="pageStrip" hidden></div>
+        <div class="busy" id="busy" hidden><span><span class="spin"></span><span id="busyText">Working…</span></span></div>
       </div>
     </div>
     <aside class="side">
@@ -80,7 +87,7 @@
   <footer class="foot"><span class="hint" id="footHint">Front first; the back is optional.</span><div class="grow"></div>
     <button class="btn primary lg" id="add">Add to exports <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></footer>
 </div>
-<input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp" hidden>
+<input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/bmp,application/pdf,.jpg,.jpeg,.png,.webp,.bmp,.pdf" hidden>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script src="/assets/tools.js"></script>
@@ -230,7 +237,7 @@ $('#redetect').onclick = async () => { const s = S(); if (!s) return;
   busy(); syncControls(); draw(); preview(true); };
 $('#dropBack').onclick = () => { sides.Back = null; syncControls(); draw(); };
 $('#sideSw').addEventListener('click', e => { const b = e.target.closest('[data-side]'); if (!b) return;
-  cur = b.dataset.side; VZ.reset(); syncControls(); draw(); if (S()) preview(true); });
+  cur = b.dataset.side; VZ.reset(); syncControls(); draw(); if (S()) preview(true); renderStrip(); });
 $('#pick').onclick = () => $('#file').click();
 $('#empty').onclick = () => $('#file').click();
 $('#file').onchange = e => { upload(e.target.files[0]); e.target.value = ''; };
@@ -242,19 +249,44 @@ async function setSide(side, d, state) {
   const img = await loadImg('/api/scan/src/' + d.id + '?max=1800');
   sides[side] = {id: d.id, w: d.w, h: d.h, found: d.found, img, rot: 0, trim: d.defaults?.trim ?? 2, ...COLOURS, ...(state || {}), corners: d.corners};
 }
+let lastPages = [];
+function renderStrip() {
+  const strip = $('#pageStrip');
+  if (lastPages.length < 2) { strip.hidden = true; strip.innerHTML = ''; return; }
+  strip.hidden = false;
+  strip.innerHTML = lastPages.map((p, i) =>
+    `<button type="button" data-i="${i}" title="Use page ${i + 1} for the ${esc(cur.toLowerCase())}" aria-pressed="${sides[cur] && sides[cur].id === p.id}"
+       style="background-image:url('/api/scan/src/${p.id}?max=160')"><span class="pn">${i + 1}</span></button>`).join('');
+}
+$('#pageStrip').addEventListener('click', async e => {
+  const b = e.target.closest('[data-i]'); if (!b) return;
+  const p = lastPages[+b.dataset.i];
+  busy('Finding the card…');
+  try { if (p.found === null) { const d = await (await fetch('/api/scan/detect/' + p.id, {method: 'POST'})).json(); p.corners = d.corners; p.found = d.found; }
+        await setSide(cur, p); VZ.reset(); }
+  catch (err) { toast(err.message, {error: true}); }
+  busy(); syncControls(); draw(); preview(true); renderStrip();
+});
 async function upload(file) {
   if (!file) return;
-  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|bmp)$/i.test(file.name)) { toast('Please choose a photo or scan (JPG or PNG)', {error: true}); return; }
-  busy('Finding the card…');
+  if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|bmp|pdf)$/i.test(file.name) && file.type !== 'application/pdf') {
+    toast('Please choose an image or PDF', {error: true}); return;
+  }
+  busy(/\.pdf$/i.test(file.name) || file.type === 'application/pdf' ? 'Reading the PDF…' : 'Finding the card…');
   try {
     const fd = new FormData(); fd.append('file', file);
     const r = await fetch('/api/scan/upload', {method: 'POST', body: fd});
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Upload failed (' + r.status + ')');
-    await setSide(cur, d); VZ.reset();
-    if (!d.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true});
+    lastPages = d.pages || [];
+    const p0 = lastPages[0];
+    if (!p0) throw new Error('That file had no pages');
+    if (p0.found === null) { const dd = await (await fetch('/api/scan/detect/' + p0.id, {method: 'POST'})).json(); p0.corners = dd.corners; p0.found = dd.found; }
+    await setSide(cur, p0); VZ.reset();
+    if (lastPages.length > 1) toast(`${lastPages.length} pages – pick the card page below (page 1 loaded)`);
+    else if (!p0.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true});
   } catch (e) { toast(e.message, {error: true}); }
-  busy(); syncControls(); draw(); preview(true);
+  busy(); syncControls(); draw(); preview(true); renderStrip();
 }
 
 $('#add').onclick = async e => {

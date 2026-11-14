@@ -1005,17 +1005,23 @@ def scan_page():
 
 @app.post("/api/scan/upload")
 def api_scan_upload():
-    """multipart "file" (JPG / PNG / WebP / BMP) -> {id, w, h, corners (found automatically), found}"""
+    """multipart "file" (image or PDF) -> {"pages": [{id, w, h, corners, found}, ...]}.
+    A PDF renders to one image per page (any kind: flattened scan, embedded image, selectable text)."""
     import scan
     f = request.files.get("file")
     if not f:
-        return jsonify({"error": "Choose a photo of the card"}), 400
+        return jsonify({"error": "Choose an image or PDF of the card"}), 400
     try:
-        img = scan.open_upright(f.read())
+        imgs = scan.load_any(f.read())
     except Exception:
-        return jsonify({"error": "That file is not a photo this app can read (use JPG or PNG)"}), 400
-    sid = _scan_put(img)
-    return jsonify(_scan_view(sid, img))
+        return jsonify({"error": "Could not read that file - use a JPG, PNG, or PDF"}), 400
+    if not imgs:
+        return jsonify({"error": "That file has no pages"}), 422
+    detect = len(imgs) <= 3                              # auto-find the card only when there are few pages
+    pages = [_scan_view(_scan_put(im), im,               # corners=None -> find now; a box + found=None -> find on click
+                        None if detect else [[0, 0], [im.width, 0], [im.width, im.height], [0, im.height]], None)
+             for im in imgs]
+    return jsonify({"pages": pages})
 
 
 @app.post("/api/scan/detect/<sid>")

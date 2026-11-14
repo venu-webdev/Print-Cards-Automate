@@ -829,7 +829,7 @@ const SCAN_ICON = `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGrad
     <path d="M31 28h11M31 32h8M31 36h10" stroke="#1e293b" stroke-width="2" stroke-linecap="round"/><path d="M10 32h44" stroke="#ef4444" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 ICON.scan = SCAN_ICON;
 const TOOLS = [['passport', PP_ICON, '8 photos (35 × 45 mm) on a 6 × 4 inch sheet'],
-               ['scan', SCAN_ICON, 'photo or scan of the customer’s own card → straight PVC card']];
+               ['scan', SCAN_ICON, 'image, scan or PDF of a card → crop → straight PVC card (front &amp; back)']];
 const TYPE_INFO = {
   auto:    {name: 'Auto-detect',     short: 'Auto-detect', sub: 'Recognises every card type'},
   aadhaar: {name: 'Aadhaar PVC',     short: 'Aadhaar',     dot: '#16a34a', sub: 'e-Aadhaar letter, locked or not'},
@@ -840,7 +840,7 @@ const TYPE_INFO = {
   dl:      {name: 'Driving Licence', short: 'DL', dot: '#2563eb', sub: '2-page DL PDF'},
   rc:      {name: 'Vehicle RC',      short: 'Vehicle RC',  dot: '#0d9488', sub: '2-page RC PDF'},
   abha:    {name: 'ABHA Card',       short: 'ABHA',        dot: '#27388f', sub: 'ABHA card PDF from the ABHA app / abha.abdm.gov.in'},
-  scan:    {name: 'Scanned card',    short: 'Card scan',   dot: '#64748b', sub: 'Photo or scan of a physical card'},
+  scan:    {name: 'Scanned card',    short: 'Card scan',   dot: '#64748b', sub: 'Image, scan or PDF of a card → PVC'},
   passport: {name: 'Passport photos', short: 'Passport photos', dot: '#f97316', sub: '8 photos, 35 × 45 mm, on a 6 × 4 inch sheet'},
   pmjay:   {name: 'Ayushman Card',   short: 'Ayushman',    dot: '#f26522', sub: 'PM-JAY / Dr. NTR Vaidya Seva card PDF (beneficiary.nha.gov.in)'},
 };

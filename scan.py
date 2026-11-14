@@ -17,15 +17,48 @@ MAX_SOURCE_PX = 4200                    # bigger photos are scaled down when upl
 DEFAULTS = {"rot": 0, "trim": 2, "auto": True, "br": 0, "ct": 0, "sat": 0, "sharp": 25}
 
 
+MAX_PDF_PAGES = 15                      # render at most this many pages of a PDF
+PDF_DPI = 300                           # render PDFs at this resolution (then capped by MAX_SOURCE_PX)
+
+
+def is_pdf(data):
+    return data[:5] == b"%PDF-" or data[:1024].lstrip()[:4] == b"%PDF"
+
+
+def _fit(im):
+    if max(im.size) > MAX_SOURCE_PX:
+        k = MAX_SOURCE_PX / max(im.size)
+        im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
+    return im
+
+
 def open_upright(data):
     """Photo bytes -> RGB image the right way up (phones store the turn in EXIF), not huge."""
     import io
     im = Image.open(io.BytesIO(data))
     im = ImageOps.exif_transpose(im).convert("RGB")
-    if max(im.size) > MAX_SOURCE_PX:
-        k = MAX_SOURCE_PX / max(im.size)
-        im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
-    return im
+    return _fit(im)
+
+
+def render_pdf(data):
+    """Any PDF (flattened scan, embedded image, or selectable text / vector) -> one RGB image per page.
+    Rendering the page is the one path that handles every kind - what you see is what you crop."""
+    import pymupdf
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    pages = []
+    for i, page in enumerate(doc):
+        if i >= MAX_PDF_PAGES:
+            break
+        pix = page.get_pixmap(dpi=PDF_DPI, alpha=False)
+        pages.append(_fit(Image.frombytes("RGB", (pix.width, pix.height), pix.samples)))
+    return pages
+
+
+def load_any(data):
+    """Any input (image or PDF) -> list of RGB page images (1 for an image)."""
+    if is_pdf(data):
+        return render_pdf(data)
+    return [open_upright(data)]
 
 
 # ---------------------------------------------------------------- finding the card
