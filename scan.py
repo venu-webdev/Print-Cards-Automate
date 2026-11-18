@@ -14,7 +14,7 @@ CARD_W, CARD_H = 1016, 638
 CARD_RATIO = CARD_W / CARD_H            # 1.586 (ID-1)
 DETECT_PX = 1000                        # detection works on a copy this big (long side)
 MAX_SOURCE_PX = 4200                    # bigger photos are scaled down when uploaded
-DEFAULTS = {"rot": 0, "trim": 2, "auto": True, "br": 0, "ct": 0, "sat": 0, "sharp": 25}
+DEFAULTS = {"rot": 0, "trim": 2, "auto": True, "br": 0, "ct": 0, "sat": 0, "sharp": 25, "deframe": False}
 
 
 MAX_PDF_PAGES = 15                      # render at most this many pages of a PDF
@@ -111,9 +111,9 @@ def _quads_from_contour(c, img_area):
     return out
 
 
-def find_card(img):
-    """-> (corners 4x2 in img px, found: bool). Two ways, the best-shaped answer wins:
-    1) edges (card outline against the table / scanner lid), 2) colour: what differs from the photo's border."""
+def _scored_quads(img):
+    """All candidate card quads on the page, best first. Two ways: 1) edges (the card outline against the table /
+    scanner lid / page), 2) colour (what differs from the border). -> (full-res array, scale k, [(score, quad_small, fill), ...])."""
     import cv2
     a = np.asarray(img.convert("RGB"))
     H, W = a.shape[:2]
@@ -144,19 +144,91 @@ def find_card(img):
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for c in sorted(cnts, key=cv2.contourArea, reverse=True)[:3]:
             cands += _quads_from_contour(c, area)
-    best = None
+    scored = []
     for q, fill in cands:
         sc, oq = _quad_score(q, area)
         sc *= min(1.0, fill) ** 2                     # the outline must really be filled like a card
-        if best is None or sc > best[0]:
-            best = (sc, oq)
-    if best is None or best[0] < 0.18:
+        if sc > 0:
+            scored.append((sc, oq, fill))
+    scored.sort(key=lambda t: -t[0])
+    return a, k, area, scored
+
+
+def _refine(a, q_small, k):
+    q = np.asarray(q_small, np.float32) / k
+    q = _fit_edges(a, q, int(12 / k) + 6)             # wide search first (rounded corners pull the rough answer in)
+    return _fit_edges(a, q, int(3 / k) + 4)           # then tight around the lines found
+
+
+def find_card(img):
+    """-> (corners 4x2 in img px, found: bool). The single best-shaped card on the page."""
+    a, k, area, scored = _scored_quads(img)
+    if not scored or scored[0][0] < 0.18:
+        H, W = a.shape[:2]
         m = 0.03                                      # not found: the whole photo (a scan that is only the card)
         q = np.array([[W * m, H * m], [W * (1 - m), H * m], [W * (1 - m), H * (1 - m)], [W * m, H * (1 - m)]], np.float32)
         return order_corners(q), False
-    q = best[1] / k
-    q = _fit_edges(a, q, int(12 / k) + 6)            # wide search first (rounded corners pull the rough answer in)
-    return _fit_edges(a, q, int(3 / k) + 4), True      # then tight around the lines found
+    return _refine(a, scored[0][1], k), True
+
+
+def _bbox(q):
+    q = np.asarray(q, float)
+    return q[:, 0].min(), q[:, 1].min(), q[:, 0].max(), q[:, 1].max()
+
+
+def _iou(b1, b2):
+    ix0, iy0 = max(b1[0], b2[0]), max(b1[1], b2[1])
+    ix1, iy1 = min(b1[2], b2[2]), min(b1[3], b2[3])
+    inter = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+    ua = (b1[2] - b1[0]) * (b1[3] - b1[1]) + (b2[2] - b2[0]) * (b2[3] - b2[1]) - inter
+    return inter / ua if ua > 0 else 0.0
+
+
+def has_frame(img, corners, min_edges=3):
+    """True if the card at `corners` is wrapped in a thin printed border line (a web-print DL / RC frame):
+    on at least `min_edges` sides there is an outermost thin full-width dark line with lighter content just inside."""
+    card = warp(img, corners, size=(254, 160))
+    a = np.asarray(card).astype(np.float32)
+    band = max(4, int(0.07 * min(a.shape[:2])))
+
+    def edge_has(strip):
+        lum = strip[:band].mean(2)
+        mid = slice(int(0.15 * lum.shape[1]), int(0.85 * lum.shape[1]))
+        for dd in range(lum.shape[0] - 3):
+            if (lum[dd, mid] < 185).mean() > 0.5 and lum[dd + 3, mid].mean() > lum[dd, mid].mean() + 12:
+                return True
+        return False
+    n = (edge_has(a) + edge_has(a[::-1]) + edge_has(np.transpose(a[:, :band], (1, 0, 2)))
+         + edge_has(np.transpose(a[:, ::-1][:, :band], (1, 0, 2))))
+    return n >= min_edges
+
+
+def find_cards(img, max_n=2):
+    """Up to `max_n` separate cards printed on one page (e.g. a DL / RC front + back together), ordered
+    top-to-bottom then left-to-right. Each: {corners 4x2 in img px, framed: bool (has a printed border line)}."""
+    import cv2
+    a, k, area, scored = _scored_quads(img)
+    picks, boxes, first_area = [], [], None
+    for sc, oq, fill in scored:
+        if sc < 0.18:
+            break
+        b = _bbox(oq)
+        if any(_iou(b, pb) > 0.3 for pb in boxes):     # the same card found more than once
+            continue
+        ar = cv2.contourArea(np.asarray(oq, np.float32))
+        if first_area is None:
+            first_area = ar
+        elif not (0.6 * first_area <= ar <= 1.7 * first_area):   # a 2nd card = front+back of one card => same size
+            continue
+        picks.append(oq)
+        boxes.append(b)
+        if len(picks) >= max_n:
+            break
+    out = [{"corners": _refine(a, oq, k)} for oq in picks]
+    for c in out:
+        c["framed"] = has_frame(img, c["corners"])
+    out.sort(key=lambda c: (round(np.asarray(c["corners"])[:, 1].mean() / 40), np.asarray(c["corners"])[:, 0].mean()))
+    return out
 
 
 def _fit_edges(a, q, search):
@@ -255,7 +327,39 @@ def enhance(card, p):
     return card
 
 
+def clean_frame(card, band_frac=0.05):
+    """Remove the thin printed border line that web-print cards (e.g. an arivahan.gov.in DL / RC) draw around
+    the card. Per edge: find the outermost thin full-width dark line (the frame) and fill the strip from the
+    card edge up to it with the colour just inside the line - so a coloured header stays that colour, white
+    stays white, and the text / photo / emblem further in are never touched. An edge with no such line (a real
+    card photographed on a table) is left exactly as it was."""
+    a = np.asarray(card.convert("RGB")).astype(np.uint8).copy()
+    H, W = a.shape[:2]
+    band = max(6, int(band_frac * min(H, W)))
+
+    def line_dist(strip):                                 # strip[d] = the row at distance d in from the edge
+        lum = strip[:band].mean(2)
+        mid = slice(int(0.15 * lum.shape[1]), int(0.85 * lum.shape[1]))
+        for d in range(lum.shape[0] - 4):                 # the OUTERMOST full-width dark line is the frame
+            if (lum[d, mid] < 185).mean() > 0.5 and lum[d + 4, mid].mean() > lum[d, mid].mean() + 12:
+                return d
+        return -1
+
+    d = line_dist(a)                                      # top
+    if d >= 0: a[:d + 2, :] = a[d + 2:d + 3, :]
+    d = line_dist(a[::-1])                                # bottom
+    if d >= 0: a[H - d - 2:, :] = a[H - d - 3:H - d - 2, :]
+    d = line_dist(np.transpose(a[:, :band], (1, 0, 2)))   # left
+    if d >= 0: a[:, :d + 2] = a[:, d + 2:d + 3]
+    d = line_dist(np.transpose(a[:, ::-1][:, :band], (1, 0, 2)))   # right
+    if d >= 0: a[:, W - d - 2:] = a[:, W - d - 3:W - d - 2]
+    return Image.fromarray(a)
+
+
 def make(img, state, size=(CARD_W, CARD_H)):
-    """Everything for one side: straighten, then colours."""
+    """Everything for one side: straighten, (optionally) remove a printed frame, then colours."""
     st = {**DEFAULTS, **(state or {})}
-    return enhance(warp(img, st["corners"], st["rot"], st["trim"], size), st)
+    card = warp(img, st["corners"], st["rot"], st["trim"], size)
+    if st.get("deframe"):
+        card = clean_frame(card)
+    return enhance(card, st)

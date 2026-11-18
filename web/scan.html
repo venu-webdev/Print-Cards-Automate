@@ -67,6 +67,7 @@
       <div class="grp"><div class="gh">Fit</div>
         <div class="tools"><button class="btn" id="redetect" type="button" title="Find the card's corners automatically again">Find card again</button></div>
         <label class="adj-row"><span>Trim edges</span><input type="range" id="trim" min="0" max="20" step="1" value="2"><output id="trimV">2 px</output></label>
+        <label class="chk"><input type="checkbox" id="deframe"> Remove outer frame line <span class="hint">&ndash; the thin border a web print (arivahan DL / RC) draws round the card</span></label>
       </div>
       <div class="grp"><div class="gh">Colours</div>
         <label class="chk"><input type="checkbox" id="auto" checked> Auto colour (fix yellow / blue tint, grey photo)</label>
@@ -80,11 +81,12 @@
         <label class="fld">Card type<select class="text" id="ctype"></select></label>
         <label class="fld">Name <span class="hint">optional &ndash; shown in the exports list, used for the file names</span><input class="text" id="name" maxlength="60" autocomplete="off" placeholder="e.g. Ravi Kumar"></label>
       </div>
-      <p class="hint">Drag the <b>4 round handles</b> onto the card&rsquo;s corners (a magnifier shows while dragging; arrow keys nudge the one under the mouse). <b>TOP</b> marks the edge that ends up on top &ndash; &#8635; if the card comes out upside down. Rounded corners: put the handle where the two edges would meet. <b>Alt + scroll</b> zooms the view, <b>Space + drag</b> moves it, Ctrl 0 fits.</p>
+      <p class="hint">Drag the <b>4 round handles</b> onto the card&rsquo;s corners (a magnifier shows while dragging; arrow keys nudge the one under the mouse). <b>Shift + drag</b> moves the whole box together &ndash; keeps its shape, just shifts it. <b>TOP</b> marks the edge that ends up on top &ndash; &#8635; if the card comes out upside down. Rounded corners: put the handle where the two edges would meet. <b>Alt + scroll</b> zooms the view, <b>Space + drag</b> moves it, Ctrl 0 fits.</p>
     </aside>
   </main>
 
   <footer class="foot"><span class="hint" id="footHint">Front first; the back is optional.</span><div class="grow"></div>
+    <button class="btn lg" id="toBack" type="button" hidden>Add the back <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     <button class="btn primary lg" id="add">Add to exports <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></footer>
 </div>
 <input type="file" id="file" accept="image/jpeg,image/png,image/webp,image/bmp,application/pdf,.jpg,.jpeg,.png,.webp,.bmp,.pdf" hidden>
@@ -142,7 +144,7 @@ function draw() {
     ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
     ctx.beginPath(); ctx.arc(x, y, 2, 0, 2 * Math.PI); ctx.fillStyle = '#4ea1ff'; ctx.fill();
   });
-  if (drag) loupe(ctx, s, drag.i, P);
+  if (drag && drag.i != null) loupe(ctx, s, drag.i, P);
 }
 function loupe(ctx, s, i, P) {                 // magnifier while dragging a corner
   const R = 74, Z = Math.max(4 * view.D, 0.8);      // screen px per photo px inside the loupe
@@ -165,17 +167,30 @@ const nearest = P => { const s = S(); if (!s) return -1; let best = -1, bd = 22;
   s.corners.map(toScreen).forEach(([x, y], i) => { const d = Math.hypot(P[0] - x, P[1] - y); if (d < bd) { bd = d; best = i; } }); return best; };
 cv.addEventListener('pointerdown', e => {
   const s = S(); if (!s) return;
-  const P = at(e), i = nearest(P);
+  const P = at(e), [ix, iy] = toImage(...P);
+  if (e.shiftKey) {                                   // Shift + drag: move the whole box (all 4 corners) together
+    drag = {all: true, lx: ix, ly: iy};
+    cv.setPointerCapture(e.pointerId); stage.focus(); e.preventDefault(); draw(); return;
+  }
+  const i = nearest(P);
   if (i < 0) return;
-  const [ix, iy] = toImage(...P);
   drag = {i, dx: s.corners[i][0] - ix, dy: s.corners[i][1] - iy};
   cv.setPointerCapture(e.pointerId); stage.focus(); e.preventDefault(); draw();
 });
 cv.addEventListener('pointermove', e => {
   const s = S(); if (!s) return;
   const P = at(e);
-  if (!drag) { const h = nearest(P); cv.style.cursor = h >= 0 ? 'grab' : ''; if (h !== hover) { hover = h; draw(); } return; }
+  if (!drag) { const h = nearest(P); cv.style.cursor = e.shiftKey ? 'move' : (h >= 0 ? 'grab' : ''); if (h !== hover) { hover = h; draw(); } return; }
   const [ix, iy] = toImage(...P);
+  if (drag.all) {                                     // move the whole box: one delta for every corner, clamped so it stays rigid
+    let dx = ix - drag.lx, dy = iy - drag.ly;
+    for (const [cx, cy] of s.corners) {
+      dx = Math.max(-s.w * .2 - cx, Math.min(s.w * 1.2 - cx, dx));
+      dy = Math.max(-s.h * .2 - cy, Math.min(s.h * 1.2 - cy, dy));
+    }
+    s.corners = s.corners.map(([cx, cy]) => [cx + dx, cy + dy]);
+    drag.lx = ix; drag.ly = iy; cv.style.cursor = 'move'; draw(); return;
+  }
   s.corners[drag.i] = [Math.max(-s.w * .2, Math.min(s.w * 1.2, ix + drag.dx)), Math.max(-s.h * .2, Math.min(s.h * 1.2, iy + drag.dy))];
   cv.style.cursor = 'grabbing'; draw();
 });
@@ -191,7 +206,7 @@ new ResizeObserver(draw).observe(stage);
 
 // ---- the straight result (made on the server, exactly like the final card)
 let pvTimer = 0, pvCtl = null, pvUrl = '';
-const sideBody = s => ({id: s.id, corners: s.corners, rot: s.rot, trim: s.trim, auto: s.auto, br: s.br, ct: s.ct, sat: s.sat, sharp: s.sharp});
+const sideBody = s => ({id: s.id, corners: s.corners, rot: s.rot, trim: s.trim, deframe: s.deframe, auto: s.auto, br: s.br, ct: s.ct, sat: s.sat, sharp: s.sharp});
 function preview(now) {
   clearTimeout(pvTimer);
   pvTimer = setTimeout(async () => {
@@ -215,6 +230,7 @@ function syncControls() {
   const s = S();
   for (const [k, f, d] of ctrls) { const v = s ? s[k] : d; $('#' + k).value = v; $('#' + k + 'V').textContent = f(v); $('#' + k).disabled = !s; }
   $('#auto').checked = s ? s.auto : true; $('#auto').disabled = !s;
+  $('#deframe').checked = s ? !!s.deframe : false; $('#deframe').disabled = !s;
   ['#redetect', '#turn', '#resetCol'].forEach(q => $(q).disabled = !s);
   $('#pickLbl').textContent = s ? 'Another photo' : 'Choose photo';
   $('#dropBack').hidden = !(cur === 'Back' && s);
@@ -223,10 +239,14 @@ function syncControls() {
   document.querySelectorAll('#sideSw [data-side]').forEach(b => b.setAttribute('aria-pressed', b.dataset.side === cur));
   for (const k of ['Front', 'Back']) { const n = $('#n' + k); n.classList.toggle('done', !!sides[k]); n.textContent = sides[k] ? '✓' : (k === 'Front' ? '1' : '2'); }
   $('#add').disabled = !sides.Front;
+  const toBack = $('#toBack');
+  toBack.hidden = !(cur === 'Front' && sides.Front);   // front placed -> offer the back as the next step
+  toBack.firstChild.textContent = sides.Back ? 'Go to the back ' : 'Add the back ';
   if (!s) { $('#out').hidden = true; $('#outPh').hidden = false; }
 }
 for (const [k] of ctrls) $('#' + k).oninput = e => { const s = S(); if (!s) return; s[k] = +e.target.value; syncControls(); preview(); };
 $('#auto').onchange = e => { const s = S(); if (s) { s.auto = e.target.checked; preview(); } };
+$('#deframe').onchange = e => { const s = S(); if (s) { s.deframe = e.target.checked; preview(true); } };
 $('#resetCol').onclick = () => { const s = S(); if (s) { Object.assign(s, COLOURS); syncControls(); preview(true); } };
 $('#turn').onclick = () => { const s = S(); if (s) { s.rot = s.rot === 180 ? 0 : 180; draw(); preview(true); } };
 $('#redetect').onclick = async () => { const s = S(); if (!s) return;
@@ -236,8 +256,9 @@ $('#redetect').onclick = async () => { const s = S(); if (!s) return;
   catch { toast('Could not reach the app', {error: true}); }
   busy(); syncControls(); draw(); preview(true); };
 $('#dropBack').onclick = () => { sides.Back = null; syncControls(); draw(); };
-$('#sideSw').addEventListener('click', e => { const b = e.target.closest('[data-side]'); if (!b) return;
-  cur = b.dataset.side; VZ.reset(); syncControls(); draw(); if (S()) preview(true); renderStrip(); });
+function goSide(side) { if (side !== cur) { cur = side; VZ.reset(); } syncControls(); draw(); if (S()) preview(true); renderStrip(); }
+$('#sideSw').addEventListener('click', e => { const b = e.target.closest('[data-side]'); if (b) goSide(b.dataset.side); });
+$('#toBack').onclick = () => goSide('Back');
 $('#pick').onclick = () => $('#file').click();
 $('#empty').onclick = () => $('#file').click();
 $('#file').onchange = e => { upload(e.target.files[0]); e.target.value = ''; };
@@ -247,7 +268,7 @@ const loadImg = src => new Promise((ok, bad) => { const im = new Image(); im.onl
 
 async function setSide(side, d, state) {
   const img = await loadImg('/api/scan/src/' + d.id + '?max=1800');
-  sides[side] = {id: d.id, w: d.w, h: d.h, found: d.found, img, rot: 0, trim: d.defaults?.trim ?? 2, ...COLOURS, ...(state || {}), corners: d.corners};
+  sides[side] = {id: d.id, w: d.w, h: d.h, found: d.found, img, rot: 0, trim: d.defaults?.trim ?? 2, deframe: false, ...COLOURS, ...(state || {}), corners: d.corners};
 }
 let lastPages = [];
 function renderStrip() {
@@ -281,10 +302,23 @@ async function upload(file) {
     lastPages = d.pages || [];
     const p0 = lastPages[0];
     if (!p0) throw new Error('That file had no pages');
-    if (p0.found === null) { const dd = await (await fetch('/api/scan/detect/' + p0.id, {method: 'POST'})).json(); p0.corners = dd.corners; p0.found = dd.found; }
-    await setSide(cur, p0); VZ.reset();
-    if (lastPages.length > 1) toast(`${lastPages.length} pages – pick the card page below (page 1 loaded)`);
-    else if (!p0.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true});
+    const auto = d.auto || {};
+    const useCard = (side, c) => setSide(side, {id: c.id, w: c.w, h: c.h, found: true, corners: c.corners}, {deframe: !!c.framed});
+    if (auto.Front) {                                   // the app placed front (and maybe back) for you
+      sides.Front = sides.Back = null;
+      await useCard('Front', auto.Front);
+      if (auto.Back) await useCard('Back', auto.Back);
+      cur = 'Front'; VZ.reset();
+      const framed = auto.Front.framed || (auto.Back && auto.Back.framed);
+      const fr = framed ? ' Frame line removed' + (auto.Back ? ' on both' : '') + ' – untick "Remove outer frame" if not wanted.' : '';
+      if (auto.Back) toast('Found the front and back automatically. Check the corners, then Add to exports.' + fr);
+      else toast('Card found' + (lastPages.length > 1 ? ' on page 1' : '') + '.' + fr);
+    } else {                                            // fall back: load page 1 into the current side
+      if (p0.found === null) { const dd = await (await fetch('/api/scan/detect/' + p0.id, {method: 'POST'})).json(); p0.corners = dd.corners; p0.found = dd.found; }
+      await setSide(cur, p0); VZ.reset();
+      if (!p0.found) toast('Could not find the card edges – drag the 4 corners onto the card', {error: true});
+    }
+    if (lastPages.length > 1 && !auto.Back) toast(`${lastPages.length} pages – pick the page for each side below`);
   } catch (e) { toast(e.message, {error: true}); }
   busy(); syncControls(); draw(); preview(true); renderStrip();
 }

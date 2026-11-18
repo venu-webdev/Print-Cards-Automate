@@ -36,7 +36,8 @@ DEFAULT_SETTINGS = {
     "network": False,          # other PCs on the shop network may use the website (needs a restart)
     "network_pin": "",         # PIN other PCs must enter (this PC never needs it)
     "type_names": {},          # the shop's own names for the card types, e.g. {"pmjay": "Arogyasri"}
-}
+    "print_look": True,        # bake the Epson "Landscape" look into every card so you print with the
+}                              # printer's Auto Correction OFF (see apf.py) - shared, toggle in Settings
 # PAN back hologram sticker brightness, A (scan as is) .. F (brightest). New cards start at
 # pan_rc.HOLOGRAM_DEFAULT ("E"); each card is changed on its back side in the exports list.
 HOLOGRAM_LEVELS = ("A", "B", "C", "D", "E", "F")       # same keys as pan_rc.HOLOGRAM_LEVELS
@@ -66,7 +67,7 @@ PROCESS_LOCK = threading.Lock()   # one PDF at a time (CPU heavy)
 #   shop_settings.json  (in git)    the shop's shared choices - every PC gets them with `git pull`
 #   settings.json       (not in git) this PC's own changes only: save folder, network sharing / PIN, ...
 SHOP_SETTINGS_FILE = ROOT / "shop_settings.json"
-SHOP_KEYS = ("auto_save", "name_pattern", "extension", "pan_front", "type_names")   # never a PC path or the PIN
+SHOP_KEYS = ("auto_save", "name_pattern", "extension", "pan_front", "type_names", "print_look")   # never a PC path or the PIN
 
 
 def _shop_defaults():
@@ -206,14 +207,43 @@ def public(meta):
                                      "photo_box", "adjust", "hologram", "pan_front", "scan")}
 
 
-def get_image(job_id, side):
+_LOOK_CACHE = OrderedDict()                          # (job_id, side, mtime_ns) -> look-applied jpeg bytes
+
+
+def get_image(job_id, side, look=True):
+    """The card side's JPEG bytes. When the shop's "print_look" is on, the Epson "Landscape" look is
+    baked in here (see apf.py), so every output - preview, download, A4, ZIP, Epson / photo printing -
+    gets the same colour and the printer runs with its own Auto Correction OFF. Cached per file."""
     job = get_job(job_id)
     if side not in job["sides"]:
         abort(404)
+    p = job_dir(job_id) / f"{side}.jpeg"
     try:
-        return (job_dir(job_id) / f"{side}.jpeg").read_bytes()
+        raw = p.read_bytes()
     except OSError:
         abort(404)
+    if not look or not load_settings().get("print_look", True):
+        return raw
+    try:
+        key = (job_id, side, p.stat().st_mtime_ns)
+    except OSError:
+        key = None
+    if key and key in _LOOK_CACHE:
+        _LOOK_CACHE.move_to_end(key)
+        return _LOOK_CACHE[key]
+    try:
+        import apf
+        from PIL import Image
+        buf = io.BytesIO()
+        make_cards.save_jpeg(apf.landscape_look(Image.open(io.BytesIO(raw))), buf)
+        data = buf.getvalue()
+    except Exception:
+        return raw                                  # never fail a print over the look
+    if key:
+        _LOOK_CACHE[key] = data
+        while len(_LOOK_CACHE) > 64:
+            _LOOK_CACHE.popitem(last=False)
+    return data
 
 
 def get_pdf(job_id):
@@ -458,6 +488,7 @@ def api_set_settings():
             s[k] = body[k]
     if s.get("extension") not in (".jpeg", ".jpg"):
         s["extension"] = ".jpeg"
+    s["print_look"] = bool(s.get("print_look", True))
     s.pop("pan_hologram", None)                     # old setting (now chosen per card)
     names = s.get("type_names") if isinstance(s.get("type_names"), dict) else {}
     s["type_names"] = {k: " ".join(str(v).split())[:24] for k, v in names.items()
@@ -921,7 +952,7 @@ SCAN_TMP = HISTORY_DIR / "_scans"
 SCAN_CACHE = OrderedDict()                   # id -> PIL image (a few, so dragging corners stays quick)
 SCAN_LOCK = threading.Lock()
 SCAN_TYPES = ("scan", "aadhaar", "pan", "voter", "dl", "rc", "abha", "pmjay", "ration")
-SCAN_SIDE_KEYS = {"rot": int, "trim": float, "auto": bool, "br": float, "ct": float, "sat": float, "sharp": float}
+SCAN_SIDE_KEYS = {"rot": int, "trim": float, "auto": bool, "br": float, "ct": float, "sat": float, "sharp": float, "deframe": bool}
 
 
 def _scan_clean_old():
@@ -1005,8 +1036,11 @@ def scan_page():
 
 @app.post("/api/scan/upload")
 def api_scan_upload():
-    """multipart "file" (image or PDF) -> {"pages": [{id, w, h, corners, found}, ...]}.
-    A PDF renders to one image per page (any kind: flattened scan, embedded image, selectable text)."""
+    """multipart "file" (image or PDF) -> {"pages": [{id, w, h, corners, found}, ...], "auto": {...}}.
+    A PDF renders to one image per page (any kind: flattened scan, embedded image, selectable text).
+    `auto` is a best-guess front/back assignment: on one page it can find two cards printed together
+    (a DL / RC front + back), or across pages it takes page 1 = front, page 2 = back. `framed` on a card
+    means it has a thin printed border line, so the tool turns "Remove outer frame" on for it."""
     import scan
     f = request.files.get("file")
     if not f:
@@ -1018,10 +1052,28 @@ def api_scan_upload():
     if not imgs:
         return jsonify({"error": "That file has no pages"}), 422
     detect = len(imgs) <= 3                              # auto-find the card only when there are few pages
-    pages = [_scan_view(_scan_put(im), im,               # corners=None -> find now; a box + found=None -> find on click
+    sids = [_scan_put(im) for im in imgs]
+    pages = [_scan_view(sid, im,                         # corners=None -> find now; a box + found=None -> find on click
                         None if detect else [[0, 0], [im.width, 0], [im.width, im.height], [0, im.height]], None)
-             for im in imgs]
-    return jsonify({"pages": pages})
+             for sid, im in zip(sids, imgs)]
+
+    def _card(sid, im, corners, framed):
+        return {"id": sid, "w": im.width, "h": im.height,
+                "corners": [[float(x), float(y)] for x, y in corners], "framed": bool(framed)}
+
+    auto = {}
+    if detect:
+        if len(imgs) == 1:                              # one image / page: maybe a front + back printed together
+            found = scan.find_cards(imgs[0], max_n=2)
+            if found:
+                auto["Front"] = _card(sids[0], imgs[0], found[0]["corners"], found[0]["framed"])
+                if len(found) > 1:
+                    auto["Back"] = _card(sids[0], imgs[0], found[1]["corners"], found[1]["framed"])
+        else:                                           # several pages: page 1 = front, page 2 = back
+            for side, i in (("Front", 0), ("Back", 1)):
+                if pages[i]["found"]:
+                    auto[side] = _card(sids[i], imgs[i], pages[i]["corners"], scan.has_frame(imgs[i], pages[i]["corners"]))
+    return jsonify({"pages": pages, "auto": auto})
 
 
 @app.post("/api/scan/detect/<sid>")

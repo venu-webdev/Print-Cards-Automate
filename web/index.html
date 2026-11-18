@@ -650,6 +650,10 @@ select.text { appearance: auto; }
               <div class="slab"><label for="sAuto">Auto-save</label><p>Save every finished card to the folder above straight away.</p></div>
               <div class="sctl sw"><span class="hint" id="sAutoTxt"></span><input type="checkbox" id="sAuto" data-dirty></div>
             </div>
+            <div class="srow">
+              <div class="slab"><label for="sLook">Print look &ndash; Landscape</label><p>Give every card the clean, bright Epson &ldquo;Landscape&rdquo; look on print, download and save &ndash; so you set the printer&rsquo;s own Auto Correction to <b>Off</b> and get the same colour every time.</p></div>
+              <div class="sctl sw"><span class="hint" id="sLookTxt"></span><input type="checkbox" id="sLook" data-dirty></div>
+            </div>
           </div>
         </section>
 
@@ -1110,9 +1114,11 @@ function settingsTabs() {
 }
 let sTab = 'general', sDirty = false, sInPage = false;
 const autoTxt = () => { $('#sAutoTxt').textContent = $('#sAuto').checked ? 'On' : 'Off'; };
+const lookTxt = () => { $('#sLookTxt').textContent = $('#sLook').checked ? 'On' : 'Off'; };
 function fillSettingsForm() {
   $('#sFolder').value = settings.save_folder; $('#sAuto').checked = !!settings.auto_save; $('#sPattern').value = settings.name_pattern;
-  setExt(settings.extension); updatePreview(); autoTxt();
+  $('#sLook').checked = settings.print_look !== false;
+  setExt(settings.extension); updatePreview(); autoTxt(); lookTxt();
 }
 function setDirty(v) {
   sDirty = v; const tab = settingsTabs().find(t => t.id === sTab);
@@ -1162,6 +1168,7 @@ $('#sBack').onclick = closeSettings;
 $('#sNav').addEventListener('click', e => { const b = e.target.closest('.sitem'); if (b) openSettings(b.dataset.tab); });
 $('#spage').addEventListener('input', e => { if (e.target.closest('[data-dirty]')) setDirty(true); });
 $('#sAuto').addEventListener('change', () => { autoTxt(); setDirty(true); });
+$('#sLook').addEventListener('change', () => { lookTxt(); setDirty(true); });
 $('#discardSettings').onclick = () => { fillSettingsForm(); setDirty(false); toast('Changes discarded'); };
 $('#sPattern').oninput = updatePreview;
 document.querySelectorAll('#sExt button').forEach(b => b.onclick = () => { setExt(b.dataset.v); updatePreview(); setDirty(true); });document.querySelectorAll('.token').forEach(t => t.onclick = () => {
@@ -1178,7 +1185,7 @@ $('#saveSettings').onclick = async () => {
   const old = settings.name_pattern;
   try {
     Object.assign(settings, await api('/api/settings', {save_folder: $('#sFolder').value.trim(), auto_save: $('#sAuto').checked,
-      name_pattern: $('#sPattern').value.trim() || DEFAULT_PATTERN, extension: curExt()}));
+      name_pattern: $('#sPattern').value.trim() || DEFAULT_PATTERN, extension: curExt(), print_look: $('#sLook').checked}));
     $('#destPath').textContent = settings.save_folder; $('#destPath').title = settings.save_folder; $('#autoPill').hidden = !settings.auto_save;
     if (old !== settings.name_pattern) jobs.forEach(j => (j.sides || []).forEach(s => { if (!j.edited[s]) j.names[s] = applyPattern(settings.name_pattern, j, s); }));
     setDirty(false); render(); toast('Settings saved');
